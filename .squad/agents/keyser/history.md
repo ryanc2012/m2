@@ -10,6 +10,11 @@
 
 <!-- Append learnings below -->
 
+### 2026-05-12 — Open Questions Resolved
+
+All 14 Open Questions from the initial planning phase have been promoted to formal ADRs (ADR-009 through ADR-022) in `.squad/decisions.md`. The Open Questions table was removed and replaced with a resolution note. This closes the loop on all pending architectural and business decisions for MVP scope, ensuring clarity and traceability for future work.
+
+
 ### 2026-05-12 — Architecture & Standards Session
 
 **Architecture Style Chosen: Modular Monolith**

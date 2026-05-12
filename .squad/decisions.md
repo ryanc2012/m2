@@ -112,6 +112,8 @@ Test pyramid: 70% unit / 20% integration / 10% e2e. Standard tools: xUnit, flutt
 ---
 
 ## Open Questions (Pending Decision)
+> All questions resolved as of 2026-05-12. See ADR-009 onwards.
+
 
 > These items require team or stakeholder input before dependent epics can enter sprint planning.
 
@@ -131,6 +133,143 @@ Test pyramid: 70% unit / 20% integration / 10% e2e. Standard tools: xUnit, flutt
 | OQ-12 | Promotion discount stacking rules (mutual exclusion / best-deal-wins / additive)? | Epics 1.3, 2.3, 3.2 | Fenster |
 | OQ-13 | Approval chain depth: fixed 2-level or configurable N-level? | Epics 3.2, 3.3 | Fenster |
 | OQ-14 | API localisation strategy for EN/BM dynamic content (header-driven / bilingual object / separate endpoints)? | All three apps | Fenster |
+
+---
+
+### ADR-009: ECR Integration Protocol (MVP)
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+ECR (Electronic Cash Register) REST API integration is **deferred post-MVP** and is out of scope for the initial release. No ECR vendor or protocol will be implemented until after MVP delivery.
+
+**Rationale:** Avoids premature integration and reduces MVP complexity. Allows focus on core POS flows.
+
+**Rejected:** Early ECR integration, proprietary SDKs.
+
+---
+
+### ADR-010: SMS Gateway Abstraction
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+SMS gateway provider is **TBD**. All SMS sending is abstracted behind an `ISmsGateway` interface, allowing the provider to be swapped without code changes. Implementation must support Twilio, AWS SNS, or local telco with minimal effort.
+
+**Rationale:** Enables late binding of provider and easy future replacement.
+
+---
+
+### ADR-011: SAP Auth Object Schema Ownership
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+SAP authorization object schema is **collaboratively designed**: backend (McManus) proposes, business approves. Backend team drafts initial schema, business reviews and signs off.
+
+**Rationale:** Ensures technical feasibility and business alignment.
+
+---
+
+### ADR-012: Multi-Store Support
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+**Multi-store is supported from day one**. All relevant entities include a `shop_id` (or equivalent) as a first-class field. No single-store shortcuts in schema or logic.
+
+**Rationale:** Avoids costly refactor later; supports future growth.
+
+---
+
+### ADR-013: Coupon Issuance Timing
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+Coupons are **pre-issued on activation**: batch-generated for eligible members when a promotion goes live, not on-demand at first browse.
+
+**Rationale:** Simplifies eligibility logic and enables proactive communication.
+
+**Rejected:** On-demand issuance at first browse.
+
+---
+
+### ADR-014: Approval Escalation Modes
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+Both escalation modes are supported:
+- (A) SAP HCM org hierarchy with configurable number of levels
+- (B) Step-by-step, each step defined by SAP position (not specific user)
+Configurable per event/workflow type.
+
+**Rationale:** Flexibility for different business processes.
+
+---
+
+### ADR-015: Offline POS Support (MVP)
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+**No offline POS support for MVP**. POS is online-only; no local queue or sync on reconnect.
+
+**Rationale:** Reduces complexity and risk for MVP. Can be revisited post-MVP.
+
+---
+
+### ADR-016: Return Refund Method
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+Refunds are processed to the **original payment method only**. Store credit is not supported.
+
+**Rationale:** Simpler reconciliation and compliance.
+
+---
+
+### ADR-017: Data Residency
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+**No data residency requirement**. Use the nearest/cheapest Azure region (Southeast Asia).
+
+**Rationale:** Minimizes cost and latency. No legal constraint identified.
+
+---
+
+### ADR-018: Shared Tablet Authentication
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+**Broker account-switch** is used for shared POS tablets: MSAL shared device mode, each staff logs in/out of their own Entra ID account.
+
+**Rationale:** Aligns with Microsoft best practices and security requirements.
+
+---
+
+### ADR-019: Member QR Token Validation
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+**Server-side lookup** for member QR tokens: QR contains a reference ID, POS calls API to validate. No locally verifiable JWT. Aligns with online-only POS decision.
+
+**Rationale:** Simpler, more secure, and consistent with online-only architecture.
+
+---
+
+### ADR-020: Discount Stacking Rules
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+Discount stacking is **configurable per promotion**. Each promotion has a `stackable` flag to control stacking behavior.
+
+**Rationale:** Supports both exclusive and combinable promotions as needed.
+
+---
+
+### ADR-021: Approval Chain Depth
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+Approval chain depth is **configurable (N-level)**. Admin defines the number of levels per workflow.
+
+**Rationale:** Flexibility for different approval processes.
+
+---
+
+### ADR-022: Localisation and Language Support
+**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+
+- **No Bahasa Malaysia**. Supported languages: ZHT (Traditional Chinese) and EN.
+- API always returns bilingual object `{ en, zht }`.
+- POS app: ZHT only.
+- Member app UI: ZHT, ZHS, EN.
+- SAP master data: EN primary, ZHT optional, no ZHS in SAP. ZHS requires a separate translation layer for member app display.
+
+**Rationale:** Aligns with business requirements and SAP data constraints.
 
 ---
 

@@ -115,7 +115,7 @@ class _NotificationTile extends StatelessWidget {
       leading: Stack(
         children: [
           CircleAvatar(
-            backgroundColor: theme.colorScheme.surfaceVariant,
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
             child: Icon(
               _iconForType(notification.type),
               color: theme.colorScheme.onSurfaceVariant,

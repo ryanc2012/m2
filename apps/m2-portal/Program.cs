@@ -39,6 +39,29 @@ builder.Services.AddHttpClient<M2Portal.Services.PromotionService>(client =>
         builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
 });
 
+// Goods Receipt service
+builder.Services.AddHttpClient<M2Portal.Services.GoodsReceiptService>(client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
+});
+
+// Dashboard service
+builder.Services.AddHttpClient<M2Portal.Services.DashboardService>(client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
+});
+builder.Services.AddScoped<M2Portal.Services.IDashboardService>(sp =>
+    sp.GetRequiredService<M2Portal.Services.DashboardService>());
+
+// Notification log service
+builder.Services.AddHttpClient<M2Portal.Services.NotificationLogService>(client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
+});
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

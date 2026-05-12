@@ -12,8 +12,11 @@ public static class SapConnectorServiceExtensions
         services.Configure<SapConnectorOptions>(
             configuration.GetSection(SapConnectorOptions.SectionName));
 
-        services.AddSingleton<ISapODataClient, NoOpSapODataClient>();
-        services.AddSingleton<ISapNcoClient, NoOpSapNcoClient>();
+        // Typed HttpClient for OData — base address resolved from IConfiguration in SapODataClient constructor
+        services.AddHttpClient<ISapODataClient, SapODataClient>();
+
+        // NCo stub — throws NotSupportedException if any RFC method is invoked
+        services.AddSingleton<ISapNcoClient, SapNcoClient>();
 
         return services;
     }

@@ -1,0 +1,113 @@
+@page "/notifications"
+@attribute [Authorize]
+@using MudBlazor
+@using M2Portal.Services
+
+<PageTitle>Notification Log — M2 Portal</PageTitle>
+
+<MudBreadcrumbs Items="_breadcrumbs" Class="pa-0 mb-4" />
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Notification Log</MudText>
+    <MudSpacer />
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                   Tooltip="Refresh"
+                   OnClick="LoadAsync" />
+</MudStack>
+
+@* Filters *@
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker @bind-Date="_fromDate"
+                               Label="From Date"
+                               Variant="Variant.Outlined"
+                               Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker @bind-Date="_toDate"
+                               Label="To Date"
+                               Variant="Variant.Outlined"
+                               Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudTextField @bind-Value="_memberIdFilter"
+                              Label="Member ID"
+                              Variant="Variant.Outlined"
+                              Clearable="true"
+                              Immediate="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           OnClick="LoadAsync"
+                           FullWidth="true">
+                    Search
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+else if (_entries.Count == 0)
+{
+    <MudPaper Class="pa-8" Elevation="0" Outlined="true">
+        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Notifications"
+                     Size="Size.Large"
+                     Color="Color.Default" />
+            <MudText Typo="Typo.h6">No notifications found</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Adjust filters and search again.
+            </MudText>
+        </MudStack>
+    </MudPaper>
+}
+else
+{
+    <MudDataGrid T="NotificationLogEntry"
+                 Items="_entries"
+                 Dense="true"
+                 Hover="true"
+                 Filterable="false"
+                 Elevation="2"
+                 Class="rounded-lg">
+        <Columns>
+            <TemplateColumn Title="Timestamp" SortBy="x => x.Timestamp">
+                <CellTemplate>
+                    @context.Item.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.Type" Title="Type" />
+            <PropertyColumn Property="x => x.Recipient" Title="Recipient" />
+            <TemplateColumn Title="Status">
+                <CellTemplate>
+                    <MudChip T="string"
+                             Color="@StatusColor(context.Item.Status)"
+                             Size="Size.Small"
+                             Variant="Variant.Filled">
+                        @context.Item.Status
+                    </MudChip>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Message Preview">
+                <CellTemplate>
+                    <MudText Typo="Typo.body2"
+                             Style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        @context.Item.MessagePreview
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}

@@ -8,6 +8,7 @@ public class NotificationLog : BaseEntity
     public string RecipientUserId { get; protected set; } = string.Empty;
     public DateTimeOffset SentAt { get; protected set; }
     public NotificationStatus Status { get; protected set; }
+    public bool IsRead { get; protected set; }
     public string? ErrorMessage { get; protected set; }
 
     protected NotificationLog() { }
@@ -27,5 +28,12 @@ public class NotificationLog : BaseEntity
         SentAt = DateTimeOffset.UtcNow;
         Status = status;
         ErrorMessage = errorMessage;
+        IsRead = false;
+    }
+
+    public void MarkAsRead()
+    {
+        IsRead = true;
+        UpdatedAt = DateTimeOffset.UtcNow;
     }
 }

@@ -63,6 +63,9 @@ try
     app.MapMemberAdminEndpoints();
     app.MapPromotionEndpoints();
     app.MapAttendanceAdminEndpoints();
+    app.MapGoodsReceiptEndpoints();
+    app.MapReportingEndpoints();
+    app.MapNotificationHistoryAdminEndpoints();
 
     app.Run();
 }

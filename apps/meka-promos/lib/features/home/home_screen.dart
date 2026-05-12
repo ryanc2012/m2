@@ -5,6 +5,7 @@ import '../../features/profile/profile_screen.dart';
 import '../../features/profile/profile_service.dart';
 import '../../features/promotions/promotions_screen.dart';
 import '../../features/coupons/coupons_screen.dart';
+import '../../screens/notifications_screen.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -53,7 +54,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const CouponsScreen(),
       // My QR tab — show profile screen which includes the QR card prominently
       const ProfileScreen(),
-      _PlaceholderBody(label: l10n.notifications),
+      const NotificationsScreen(),
       const ProfileScreen(),
     ];
 

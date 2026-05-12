@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../screens/goods_receipt_screen.dart';
 import '../sales/cart_screen.dart';
 import '../member_lookup/member_lookup_screen.dart';
 import '../returns/return_screen.dart';
@@ -23,6 +24,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     NavigationDestination(icon: Icon(Icons.person_search_outlined), label: '會員'),
     NavigationDestination(icon: Icon(Icons.assignment_return_outlined), label: '退貨'),
     NavigationDestination(icon: Icon(Icons.access_time_outlined), label: '考勤'),
+    NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: '收貨'),
   ];
 
   static const _bodies = [
@@ -31,6 +33,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     MemberLookupScreen(),
     ReturnScreen(),
     ClockInOutScreen(),
+    GoodsReceiptScreen(),
   ];
 
   Future<void> _signOut() async {

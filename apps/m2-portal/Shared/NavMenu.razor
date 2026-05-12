@@ -1,7 +1,7 @@
 ﻿@using MudBlazor
 
 <MudNavMenu>
-    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
+    <MudNavLink Href="dashboard" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
         Dashboard
     </MudNavLink>
     <MudNavLink Href="promotions" Icon="@Icons.Material.Filled.LocalOffer">
@@ -23,6 +23,16 @@
                       Class="ml-1">
             </MudBadge>
         </MudStack>
+    </MudNavLink>
+    <MudDivider Class="my-2" />
+    <MudText Typo="Typo.overline" Class="px-4 py-1" Color="Color.Secondary">Warehouse</MudText>
+    <MudNavLink Href="goods-receipt" Icon="@Icons.Material.Filled.Inventory2">
+        Goods Receipt
+    </MudNavLink>
+    <MudDivider Class="my-2" />
+    <MudText Typo="Typo.overline" Class="px-4 py-1" Color="Color.Secondary">Reports</MudText>
+    <MudNavLink Href="notifications" Icon="@Icons.Material.Filled.Notifications">
+        Notification Log
     </MudNavLink>
     <MudDivider Class="my-2" />
     <MudNavLink Href="settings" Icon="@Icons.Material.Filled.Settings">

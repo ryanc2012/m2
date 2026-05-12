@@ -1,49 +1,11 @@
 ﻿@page "/"
 @attribute [Authorize]
-@using MudBlazor
+@using Microsoft.AspNetCore.Components
+@inject NavigationManager Nav
 
-<PageTitle>Dashboard — M2 Portal</PageTitle>
-
-<MudText Typo="Typo.h4" Class="mb-4">Dashboard</MudText>
-
-<MudGrid>
-    <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Active Promotions</MudText>
-            <MudText Typo="Typo.h5">—</MudText>
-            <MudText Typo="Typo.caption">Sprint 3</MudText>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Today's Sales</MudText>
-            <MudText Typo="Typo.h5">—</MudText>
-            <MudText Typo="Typo.caption">Sprint 3</MudText>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Pending Approvals</MudText>
-            <MudText Typo="Typo.h5">—</MudText>
-            <MudText Typo="Typo.caption">Sprint 2</MudText>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Staff On Duty</MudText>
-            <MudText Typo="Typo.h5">—</MudText>
-            <MudText Typo="Typo.caption">Sprint 3</MudText>
-        </MudPaper>
-    </MudItem>
-</MudGrid>
-
-<MudPaper Class="pa-6 mt-6" Elevation="0" Outlined="true">
-    <MudStack AlignItems="AlignItems.Center" Spacing="2">
-        <MudIcon Icon="@Icons.Material.Filled.Construction" Size="Size.Large" Color="Color.Default" />
-        <MudText Typo="Typo.h6" Color="Color.Default">Sprint 1 Shell</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Default">
-            Dashboard content will be populated in Sprint 3 once APIs are available.
-        </MudText>
-    </MudStack>
-</MudPaper>
-
+@code {
+    protected override void OnInitialized()
+    {
+        Nav.NavigateTo("/dashboard");
+    }
+}

@@ -1,0 +1,90 @@
+@page "/goods-receipt"
+@attribute [Authorize]
+@using MudBlazor
+@using M2Portal.Services
+
+<PageTitle>Goods Receipt — M2 Portal</PageTitle>
+
+<MudBreadcrumbs Items="_breadcrumbs" Class="pa-0 mb-4" />
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Goods Receipt</MudText>
+    <MudSpacer />
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                   Tooltip="Refresh"
+                   OnClick="LoadAsync" />
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+else if (_receipts.Count == 0)
+{
+    <MudPaper Class="pa-8" Elevation="0" Outlined="true">
+        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Inventory2"
+                     Size="Size.Large"
+                     Color="Color.Default" />
+            <MudText Typo="Typo.h6">No goods receipts</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                No delivery notes found for this shop.
+            </MudText>
+        </MudStack>
+    </MudPaper>
+}
+else
+{
+    <MudTable T="GoodsReceiptSummary"
+              Items="_receipts"
+              Hover="true"
+              Dense="true"
+              Elevation="2"
+              Class="rounded-lg">
+        <HeaderContent>
+            <MudTh>SAP Delivery Note</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Received Date</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="SAP Delivery Note">
+                <MudText Typo="Typo.body2" Style="font-weight:600">
+                    @context.SapDeliveryNote
+                </MudText>
+            </MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string"
+                         Color="@StatusColor(context.Status)"
+                         Size="Size.Small"
+                         Variant="Variant.Filled">
+                    @StatusLabel(context.Status)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Received Date">
+                @context.ReceivedDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                <MudButtonGroup Size="Size.Small" Variant="Variant.Text">
+                    <MudButton Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.OpenInNew"
+                               Href="@($"goods-receipt/{context.Id}")">
+                        View
+                    </MudButton>
+                    @if (context.Status == GoodsReceiptStatus.Pending)
+                    {
+                        <MudButton Color="Color.Success"
+                                   StartIcon="@Icons.Material.Filled.CheckCircle"
+                                   OnClick="@(() => ConfirmAsync(context.Id))">
+                            Confirm
+                        </MudButton>
+                    }
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}

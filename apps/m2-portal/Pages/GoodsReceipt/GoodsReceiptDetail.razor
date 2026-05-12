@@ -1,0 +1,143 @@
+@page "/goods-receipt/{Id:guid}"
+@attribute [Authorize]
+@using MudBlazor
+@using M2Portal.Services
+
+<PageTitle>Goods Receipt Detail — M2 Portal</PageTitle>
+
+<MudBreadcrumbs Items="_breadcrumbs" Class="pa-0 mb-4" />
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else if (_detail is not null)
+{
+    <MudGrid>
+        <MudItem xs="12">
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudText Typo="Typo.h6">
+                                Delivery Note: @_detail.SapDeliveryNote
+                            </MudText>
+                            <MudChip T="string"
+                                     Color="@StatusColor(_detail.Status)"
+                                     Variant="Variant.Filled"
+                                     Size="Size.Small">
+                                @StatusLabel(_detail.Status)
+                            </MudChip>
+                        </MudStack>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        @if (_detail.Status == GoodsReceiptStatus.Pending)
+                        {
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Success"
+                                       StartIcon="@Icons.Material.Filled.CheckCircle"
+                                       OnClick="ConfirmReceiptAsync"
+                                       Disabled="_acting">
+                                Confirm Receipt
+                            </MudButton>
+                        }
+                    </CardHeaderActions>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudSimpleTable Dense="true" Hover="false" Elevation="0">
+                        <tbody>
+                            <tr>
+                                <td><strong>Received Date</strong></td>
+                                <td>@_detail.ReceivedDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Total Lines</strong></td>
+                                <td>@_detail.Lines.Count</td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12">
+            <MudText Typo="Typo.h6" Class="mb-2">Line Items</MudText>
+            @if (_detail.Lines.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">No line items found.</MudAlert>
+            }
+            else
+            {
+                <MudDataGrid T="GoodsReceiptLine"
+                             Items="_detail.Lines"
+                             Dense="true"
+                             Hover="true"
+                             Elevation="2"
+                             Class="rounded-lg">
+                    <Columns>
+                        <PropertyColumn Property="x => x.LineNumber" Title="#" />
+                        <PropertyColumn Property="x => x.ProductCode" Title="Product Code" />
+                        <PropertyColumn Property="x => x.ProductNameZht" Title="Product Name" />
+                        <PropertyColumn Property="x => x.ExpectedQty" Title="Expected Qty" />
+                        <PropertyColumn Property="x => x.ReceivedQty" Title="Received Qty" />
+                        <TemplateColumn Title="Discrepancy">
+                            <CellTemplate>
+                                @if (context.Item.Discrepancy != 0)
+                                {
+                                    <MudChip T="string"
+                                             Color="Color.Error"
+                                             Size="Size.Small"
+                                             Variant="Variant.Outlined">
+                                        @(context.Item.Discrepancy > 0 ? "+" : "")@context.Item.Discrepancy
+                                    </MudChip>
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                             Color="Color.Success"
+                                             Size="Size.Small" />
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Discrepancy Note">
+                            <CellTemplate>
+                                @if (!string.IsNullOrWhiteSpace(context.Item.DiscrepancyNote))
+                                {
+                                    <MudText Typo="Typo.body2">@context.Item.DiscrepancyNote</MudText>
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@* Discrepancy note dialog *@
+<MudDialog @bind-Visible="_dialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Record Discrepancy</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_discrepancyNote"
+                      Label="Discrepancy Note"
+                      Required="true"
+                      Lines="3"
+                      Variant="Variant.Outlined"
+                      Immediate="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _dialogOpen = false)">Cancel</MudButton>
+        <MudButton Color="Color.Warning"
+                   Variant="Variant.Filled"
+                   OnClick="SubmitDiscrepancyAsync"
+                   Disabled="@string.IsNullOrWhiteSpace(_discrepancyNote)">
+            Record
+        </MudButton>
+    </DialogActions>
+</MudDialog>

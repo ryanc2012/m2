@@ -1,0 +1,129 @@
+@page "/dashboard"
+@attribute [Authorize]
+@using MudBlazor
+@using M2Portal.Services
+
+<PageTitle>Dashboard — M2 Portal</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-6">Dashboard</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+@if (_summary is not null)
+{
+    <MudGrid>
+        @* Today's Sales *@
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.PointOfSale"
+                                     Color="Color.Primary"
+                                     Size="Size.Medium" />
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
+                                Today's Sales
+                            </MudText>
+                        </MudStack>
+                        <MudText Typo="Typo.h5" Style="font-weight:700">
+                            RM @_summary.TodayRevenue.ToString("N2")
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @_summary.TodayTransactionCount transactions
+                        </MudText>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        @* Today's Attendance *@
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.AccessTime"
+                                     Color="Color.Info"
+                                     Size="Size.Medium" />
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
+                                Today's Attendance
+                            </MudText>
+                        </MudStack>
+                        <MudText Typo="Typo.h5" Style="font-weight:700">
+                            @_summary.TodayClockedIn staff
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @_summary.TodayTotalHours.ToString("F1") total hours
+                        </MudText>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        @* Active Promotions *@
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.LocalOffer"
+                                     Color="Color.Success"
+                                     Size="Size.Medium" />
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
+                                Active Promotions
+                            </MudText>
+                        </MudStack>
+                        <MudText Typo="Typo.h5" Style="font-weight:700">
+                            @_summary.ActivePromotionsCount
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            <MudLink Href="/promotions">View all promotions</MudLink>
+                        </MudText>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        @* Pending Approvals *@
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2"
+                     Style="@(_summary.PendingApprovalsCount > 0 ? "border-left: 4px solid var(--mud-palette-warning);" : "")">
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.HowToVote"
+                                     Color="@(_summary.PendingApprovalsCount > 0 ? Color.Warning : Color.Default)"
+                                     Size="Size.Medium" />
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
+                                Pending Approvals
+                            </MudText>
+                        </MudStack>
+                        <MudText Typo="Typo.h5"
+                                 Style="font-weight:700"
+                                 Color="@(_summary.PendingApprovalsCount > 0 ? Color.Warning : Color.Default)">
+                            @_summary.PendingApprovalsCount
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            <MudLink Href="/approvals">Review approvals</MudLink>
+                        </MudText>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @if (_summary.PendingApprovalsCount > 0)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mt-4" Icon="@Icons.Material.Filled.PendingActions">
+            You have <strong>@_summary.PendingApprovalsCount</strong> pending approval(s) requiring action.
+            <MudLink Href="/approvals" Class="ml-1">Go to Approvals</MudLink>
+        </MudAlert>
+    }
+}

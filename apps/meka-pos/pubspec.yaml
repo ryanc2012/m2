@@ -19,6 +19,8 @@ dependencies:
   dio: ^5.7.0
   msal_auth: ^1.0.6
   intl: ^0.19.0
+  printing: ^5.13.2
+  pdf: ^3.10.8
 
 dev_dependencies:
   flutter_test:

@@ -16,9 +16,25 @@ public interface ISapODataClient
     Task<Result<IReadOnlyList<SapEmployee>>> GetEmployeesAsync(
         Guid tenantId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Posts a goods movement (GR/GI) to SAP via OData. Used by the outbox worker (ADR-017).</summary>
+    Task<Result> PostGoodsMovementAsync(
+        Guid tenantId,
+        SapGoodsMovementPayload payload,
+        CancellationToken cancellationToken = default);
 }
 
 // Lightweight DTO stubs — domain mapping happens in Infrastructure anti-corruption layer
 public record SapProduct(string MaterialNumber, BilingualText Description, string UnitOfMeasure);
 public record SapOrganisation(string CompanyCode, BilingualText Name);
 public record SapEmployee(string PersonnelNumber, string FirstName, string LastName, string Position);
+public record SapGoodsMovementPayload(
+    string DeliveryNoteNumber,
+    string MovementType,
+    IReadOnlyList<SapGoodsMovementItem> Items);
+public record SapGoodsMovementItem(
+    string MaterialNumber,
+    decimal Quantity,
+    string UnitOfMeasure,
+    string StorageLocation);
+

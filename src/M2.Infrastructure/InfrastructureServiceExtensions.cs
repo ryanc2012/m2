@@ -1,14 +1,18 @@
 using M2.Domain.Approvals;
 using M2.Domain.Attendance;
+using M2.Domain.GoodsReceipt;
 using M2.Domain.Members;
 using M2.Domain.Notifications;
 using M2.Domain.Promotions;
+using M2.Domain.Reporting;
 using M2.Domain.Sales;
 using M2.Infrastructure.Approvals;
 using M2.Infrastructure.Attendance;
+using M2.Infrastructure.GoodsReceipt;
 using M2.Infrastructure.Members;
 using M2.Infrastructure.Notifications;
 using M2.Infrastructure.Promotions;
+using M2.Infrastructure.Reporting;
 using M2.Infrastructure.Sales;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -39,6 +43,7 @@ public static class InfrastructureServiceExtensions
 
         // Notifications
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<INotificationHistoryService, NotificationHistoryService>();
         services.AddSingleton<ISmsGateway, NoOpSmsGateway>();
 
         // Members
@@ -56,6 +61,12 @@ public static class InfrastructureServiceExtensions
 
         // Attendance
         services.AddScoped<IAttendanceService, AttendanceService>();
+
+        // Goods Receipt
+        services.AddScoped<IGoodsReceiptService, GoodsReceiptService>();
+
+        // Reporting
+        services.AddScoped<IReportingService, ReportingService>();
 
         return services;
     }

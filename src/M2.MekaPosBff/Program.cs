@@ -60,6 +60,7 @@ try
     app.MapHealthChecks("/health");
     app.MapSalesEndpoints();
     app.MapAttendanceEndpoints();
+    app.MapGoodsReceiptEndpoints();
 }
 catch (Exception ex)
 {

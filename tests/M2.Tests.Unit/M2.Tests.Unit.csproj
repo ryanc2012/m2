@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\M2.SharedKernel\M2.SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\M2.Domain\M2.Domain.csproj" />
+    <ProjectReference Include="..\..\src\M2.SapConnector\M2.SapConnector.csproj" />
   </ItemGroup>
 
 </Project>

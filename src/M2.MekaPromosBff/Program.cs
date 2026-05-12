@@ -60,6 +60,7 @@ try
     app.MapHealthChecks("/health");
     app.MapMemberEndpoints();
     app.MapCouponEndpoints();
+    app.MapNotificationHistoryEndpoints();
 
     app.Run();
 }

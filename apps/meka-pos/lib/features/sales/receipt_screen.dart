@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../services/print_service.dart';
 import 'sales_service.dart';
 
-class ReceiptScreen extends StatelessWidget {
+class ReceiptScreen extends ConsumerStatefulWidget {
   const ReceiptScreen({super.key, required this.transaction});
 
   final SaleTransaction transaction;
+
+  @override
+  ConsumerState<ReceiptScreen> createState() => _ReceiptScreenState();
+}
+
+class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
+  bool _printing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +35,7 @@ class ReceiptScreen extends StatelessWidget {
             Text('交易成功', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 4),
             Text(
-              '交易 ID: ${transaction.transactionId}',
+              '交易 ID: ${widget.transaction.transactionId}',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.outline),
             ),
@@ -44,13 +53,13 @@ class ReceiptScreen extends StatelessWidget {
                       children: [
                         Text('日期', style: theme.textTheme.bodySmall),
                         Text(
-                          _formatDate(transaction.createdAt),
+                          _formatDate(widget.transaction.createdAt),
                           style: theme.textTheme.bodySmall,
                         ),
                       ],
                     ),
                     const Divider(height: 16),
-                    ...transaction.items.map(
+                    ...widget.transaction.items.map(
                       (item) => Padding(
                         padding: const EdgeInsets.symmetric(vertical: 3),
                         child: Row(
@@ -67,35 +76,52 @@ class ReceiptScreen extends StatelessWidget {
                     const Divider(height: 16),
                     _SummaryRow(
                         label: '小計',
-                        value: 'RM ${transaction.subtotal.toStringAsFixed(2)}'),
-                    if (transaction.discountAmount > 0)
+                        value: 'RM ${widget.transaction.subtotal.toStringAsFixed(2)}'),
+                    if (widget.transaction.discountAmount > 0)
                       _SummaryRow(
                         label: '折扣',
-                        value: '- RM ${transaction.discountAmount.toStringAsFixed(2)}',
+                        value: '- RM ${widget.transaction.discountAmount.toStringAsFixed(2)}',
                         color: theme.colorScheme.error,
                       ),
                     const Divider(height: 12),
                     _SummaryRow(
                       label: '總計',
-                      value: 'RM ${transaction.total.toStringAsFixed(2)}',
+                      value: 'RM ${widget.transaction.total.toStringAsFixed(2)}',
                       bold: true,
                     ),
                     const SizedBox(height: 8),
                     _SummaryRow(
                       label: '付款方式',
-                      value: transaction.paymentMethod.label,
+                      value: widget.transaction.paymentMethod.label,
                     ),
-                    if (transaction.memberQrCode != null)
+                    if (widget.transaction.memberQrCode != null)
                       _SummaryRow(
                         label: '會員',
-                        value: transaction.memberQrCode!,
+                        value: widget.transaction.memberQrCode!,
                       ),
                   ],
                 ),
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            // Print receipt button
+            OutlinedButton.icon(
+              onPressed: _printing ? null : _printReceipt,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+              ),
+              icon: _printing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.print_outlined),
+              label: const Text('列印收據'),
+            ),
+
+            const SizedBox(height: 12),
             FilledButton(
               onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
               style: FilledButton.styleFrom(
@@ -107,6 +133,31 @@ class ReceiptScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _printReceipt() async {
+    setState(() => _printing = true);
+    try {
+      await ref
+          .read(printServiceProvider)
+          .printReceiptAsync(widget.transaction);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已開啟列印')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('列印失敗，請重試'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
   }
 
   String _formatDate(DateTime dt) {

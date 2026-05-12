@@ -1,9 +1,11 @@
 using M2.Domain.Approvals;
 using M2.Domain.Attendance;
+using M2.Domain.GoodsReceipt;
 using M2.Domain.Members;
 using M2.Domain.Notifications;
 using M2.Domain.Promotions;
 using M2.Domain.Sales;
+using M2.Domain.Sap;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 
@@ -42,6 +44,13 @@ public class M2DbContext(DbContextOptions<M2DbContext> options) : DbContext(opti
 
     // Attendance
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+
+    // Goods Receipt
+    public DbSet<GoodsReceiptNote> GoodsReceiptNotes => Set<GoodsReceiptNote>();
+    public DbSet<GoodsReceiptLineItem> GoodsReceiptLineItems => Set<GoodsReceiptLineItem>();
+
+    // SAP Outbox
+    public DbSet<SapOutboxEntry> SapOutboxEntries => Set<SapOutboxEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -220,7 +220,8 @@ CREATE TABLE GoodsReceipt (
 - ~~Promotions (Sprint 3)~~ — **delivered**
 - ~~Sales (Sprint 3)~~ — **delivered**
 - ~~Attendance (Sprint 3)~~ — **delivered**
-- GoodsReceipts (Sprint 4)
+- ~~GoodsReceipts (Sprint 4)~~ — **delivered**
+- ~~SAP Outbox (Sprint 4)~~ — **delivered**
 
 ---
 
@@ -478,4 +479,61 @@ Migration: `20260512020000_Sprint3_PromotionsSalesAttendance`
 | + audit/soft-delete columns | | Standard BaseEntity columns |
 
 **Indexes:** (TenantId, EmployeeId, ClockInAt)
+
+---
+
+## Sprint 4 Tables — Goods Receipt, SAP Outbox
+
+Migration: `20260512030000_Sprint4_GoodsReceiptSapOutbox`
+
+### goods_receipt_notes
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | uuid PK | Client-assigned GUID |
+| TenantId | uuid NOT NULL | Multi-tenancy discriminator |
+| ShopId | uuid NOT NULL | Multi-store discriminator |
+| SapDeliveryNoteNumber | varchar(50) NOT NULL | SAP delivery note reference |
+| Status | varchar(50) NOT NULL | Enum: Pending/Confirmed/Discrepancy |
+| ReceivedAt | timestamptz NULL | Set when Status = Received |
+| ConfirmedAt | timestamptz NULL | Set when Status = Confirmed |
+| + audit/soft-delete columns | | Standard BaseEntity columns |
+
+**Indexes:** (TenantId, ShopId, IsDeleted) · (TenantId, ShopId, Status)
+
+### goods_receipt_line_items
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | uuid PK | Client-assigned GUID |
+| TenantId | uuid NOT NULL | Multi-tenancy discriminator |
+| ShopId | uuid NOT NULL | Multi-store discriminator |
+| GoodsReceiptNoteId | uuid NOT NULL FK → goods_receipt_notes | **Cascade delete** — line items have no independent existence |
+| ProductCode | varchar(50) NOT NULL | SAP material number |
+| ProductName_en | varchar(500) NOT NULL | Bilingual name snapshot (EN) |
+| ProductName_zht | varchar(500) NOT NULL | Bilingual name snapshot (ZHT) |
+| ExpectedQty | numeric(18,4) NOT NULL | Quantity expected per SAP delivery note |
+| ReceivedQty | numeric(18,4) NOT NULL | Actual quantity received at store |
+| UnitOfMeasure | varchar(20) NOT NULL | SAP unit (e.g. EA, KG, L) |
+| DiscrepancyNote | varchar(500) NULL | Free-text note when ReceivedQty ≠ ExpectedQty |
+| + audit/soft-delete columns | | Standard BaseEntity columns |
+
+**Indexes:** (GoodsReceiptNoteId)
+
+### sap_outbox_entries
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | uuid PK | Client-assigned GUID |
+| TenantId | uuid NOT NULL | Multi-tenancy discriminator |
+| ShopId | uuid NOT NULL | Multi-store discriminator |
+| Operation | varchar(100) NOT NULL | SAP operation name e.g. "GoodsMovement", "StockAdjustment" |
+| Payload | text NOT NULL | JSON payload for SAP write |
+| Status | varchar(50) NOT NULL | Enum: Pending/Sent/Failed |
+| ProcessedAt | timestamptz NULL | Set when Status = Sent |
+| RetryCount | int NOT NULL | Default 0; incremented on each failure |
+| ErrorMessage | varchar(1000) NULL | Last error from SAP or transport layer |
+| + audit/soft-delete columns | | Standard BaseEntity columns |
+
+**Indexes:** (TenantId, Status) · (Status, CreatedAt) — second index used by Hangfire polling worker (ADR-006)
 

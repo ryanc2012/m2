@@ -1297,6 +1297,290 @@ partial class M2DbContextModelSnapshot : ModelSnapshot
                 .OnDelete(DeleteBehavior.Restrict)
                 .IsRequired();
         });
+
+        modelBuilder.Entity("M2.Domain.GoodsReceipt.GoodsReceiptLineItem", b =>
+        {
+            b.HasOne("M2.Domain.GoodsReceipt.GoodsReceiptNote", null)
+                .WithMany("LineItems")
+                .HasForeignKey("GoodsReceiptNoteId")
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
+        });
+
+        // ── Sprint 4 entities ────────────────────────────────────────────────
+
+        modelBuilder.Entity("M2.Domain.GoodsReceipt.GoodsReceiptNote", b =>
+        {
+            b.Property<Guid>("Id")
+                .HasColumnType("uuid")
+                .HasColumnName("Id");
+
+            b.Property<DateTimeOffset?>("ConfirmedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("ConfirmedAt");
+
+            b.Property<DateTimeOffset>("CreatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("CreatedAt");
+
+            b.Property<string>("CreatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("CreatedBy");
+
+            b.Property<DateTimeOffset?>("DeletedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("DeletedAt");
+
+            b.Property<string>("DeletedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("DeletedBy");
+
+            b.Property<bool>("IsDeleted")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsDeleted");
+
+            b.Property<DateTimeOffset?>("ReceivedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("ReceivedAt");
+            b.Property<string>("SapDeliveryNoteNumber")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("SapDeliveryNoteNumber");
+
+            b.Property<Guid>("ShopId")
+                .HasColumnType("uuid")
+                .HasColumnName("ShopId");
+
+            b.Property<string>("Status")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("Status");
+
+            b.Property<Guid>("TenantId")
+                .HasColumnType("uuid")
+                .HasColumnName("TenantId");
+
+            b.Property<DateTimeOffset?>("UpdatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("UpdatedAt");
+
+            b.Property<string>("UpdatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("UpdatedBy");
+
+            b.HasKey("Id");
+
+            b.HasIndex("TenantId", "ShopId", "IsDeleted")
+                .HasDatabaseName("IX_goods_receipt_notes_TenantId_ShopId_IsDeleted");
+
+            b.HasIndex("TenantId", "ShopId", "Status")
+                .HasDatabaseName("IX_goods_receipt_notes_TenantId_ShopId_Status");
+
+            b.ToTable("goods_receipt_notes", "m2");
+        });
+
+        modelBuilder.Entity("M2.Domain.GoodsReceipt.GoodsReceiptLineItem", b =>
+        {
+            b.Property<Guid>("Id")
+                .HasColumnType("uuid")
+                .HasColumnName("Id");
+
+            b.Property<DateTimeOffset>("CreatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("CreatedAt");
+
+            b.Property<string>("CreatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("CreatedBy");
+
+            b.Property<DateTimeOffset?>("DeletedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("DeletedAt");
+
+            b.Property<string>("DeletedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("DeletedBy");
+
+            b.Property<string>("DiscrepancyNote")
+                .HasMaxLength(500)
+                .HasColumnType("character varying(500)")
+                .HasColumnName("DiscrepancyNote");
+
+            b.Property<decimal>("ExpectedQty")
+                .HasColumnType("numeric(18,4)")
+                .HasColumnName("ExpectedQty");
+
+            b.Property<Guid>("GoodsReceiptNoteId")
+                .HasColumnType("uuid")
+                .HasColumnName("GoodsReceiptNoteId");
+
+            b.Property<bool>("IsDeleted")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsDeleted");
+
+            b.Property<string>("ProductCode")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("ProductCode");
+
+            b.Property<decimal>("ReceivedQty")
+                .HasColumnType("numeric(18,4)")
+                .HasColumnName("ReceivedQty");
+
+            b.Property<Guid>("ShopId")
+                .HasColumnType("uuid")
+                .HasColumnName("ShopId");
+
+            b.Property<Guid>("TenantId")
+                .HasColumnType("uuid")
+                .HasColumnName("TenantId");
+
+            b.Property<string>("UnitOfMeasure")
+                .IsRequired()
+                .HasMaxLength(20)
+                .HasColumnType("character varying(20)")
+                .HasColumnName("UnitOfMeasure");
+
+            b.Property<DateTimeOffset?>("UpdatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("UpdatedAt");
+
+            b.Property<string>("UpdatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("UpdatedBy");
+
+            b.HasKey("Id");
+
+            b.HasIndex("GoodsReceiptNoteId")
+                .HasDatabaseName("IX_goods_receipt_line_items_GoodsReceiptNoteId");
+
+            b.ToTable("goods_receipt_line_items", "m2");
+
+            b.OwnsOne("M2.SharedKernel.BilingualText", "ProductName", b1 =>
+            {
+                b1.Property<Guid>("GoodsReceiptLineItemId")
+                    .HasColumnType("uuid");
+
+                b1.Property<string>("En")
+                    .IsRequired()
+                    .HasMaxLength(500)
+                    .HasColumnType("character varying(500)")
+                    .HasColumnName("ProductName_en");
+
+                b1.Property<string>("Zht")
+                    .IsRequired()
+                    .HasMaxLength(500)
+                    .HasColumnType("character varying(500)")
+                    .HasColumnName("ProductName_zht");
+
+                b1.HasKey("GoodsReceiptLineItemId");
+                b1.ToTable("goods_receipt_line_items", "m2");
+                b1.WithOwner().HasForeignKey("GoodsReceiptLineItemId");
+            });
+        });
+
+        modelBuilder.Entity("M2.Domain.Sap.SapOutboxEntry", b =>
+        {
+            b.Property<Guid>("Id")
+                .HasColumnType("uuid")
+                .HasColumnName("Id");
+
+            b.Property<DateTimeOffset>("CreatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("CreatedAt");
+
+            b.Property<string>("CreatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("CreatedBy");
+
+            b.Property<DateTimeOffset?>("DeletedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("DeletedAt");
+
+            b.Property<string>("DeletedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("DeletedBy");
+
+            b.Property<string>("ErrorMessage")
+                .HasMaxLength(1000)
+                .HasColumnType("character varying(1000)")
+                .HasColumnName("ErrorMessage");
+
+            b.Property<bool>("IsDeleted")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsDeleted");
+
+            b.Property<string>("Operation")
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnType("character varying(100)")
+                .HasColumnName("Operation");
+
+            b.Property<string>("Payload")
+                .IsRequired()
+                .HasColumnType("text")
+                .HasColumnName("Payload");
+
+            b.Property<DateTimeOffset?>("ProcessedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("ProcessedAt");
+
+            b.Property<int>("RetryCount")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("integer")
+                .HasDefaultValue(0)
+                .HasColumnName("RetryCount");
+
+            b.Property<Guid>("ShopId")
+                .HasColumnType("uuid")
+                .HasColumnName("ShopId");
+
+            b.Property<string>("Status")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("Status");
+
+            b.Property<Guid>("TenantId")
+                .HasColumnType("uuid")
+                .HasColumnName("TenantId");
+
+            b.Property<DateTimeOffset?>("UpdatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("UpdatedAt");
+
+            b.Property<string>("UpdatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("UpdatedBy");
+
+            b.HasKey("Id");
+
+            b.HasIndex("TenantId", "Status")
+                .HasDatabaseName("IX_sap_outbox_entries_TenantId_Status");
+
+            b.HasIndex("Status", "CreatedAt")
+                .HasDatabaseName("IX_sap_outbox_entries_Status_CreatedAt");
+
+            b.ToTable("sap_outbox_entries", "m2");
+        });
 #pragma warning restore 612, 618
     }
 }

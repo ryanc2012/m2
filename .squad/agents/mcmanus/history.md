@@ -119,3 +119,56 @@ The repo already had minimal entity stubs (`Member.cs`, `OtpRequest.cs`, `Notifi
 **From Fenster (Frontend Dev):**
 - Fenster's D3 (QR token) and BE-REC-001 R5 are aligned — signed JWTs with 5-minute TTL covers both backend coupon QR codes and the member-facing QR code in the Promos app. Confirm with Fenster that countdown timer design assumes 5-minute window.
 - Fenster's D2 (ECR protocol) is the same as OQ-01 — both blocked until ECR vendor is confirmed by client.
+
+
+
+### 2026-05-12 — Sprint 3: Promotions, Sales, and Attendance APIs
+
+**What was built:**
+
+**Module 1 — Promotions (`M2.Domain/Promotions/`, `M2.Infrastructure/Promotions/`)**
+- `Promotion` entity: bilingual name, type, status, formulaJson, stackable flag, approvalRequestId, nav to `PromotionProduct` and `Coupon`.
+- `Coupon` entity: code (unique), issuedAt, expiresAt, redeemedAt, isRedeemed; FK to Promotion and optional Member.
+- `PromotionProduct` join entity: PromotionId, ProductId (SAP product code), DiscountValue.
+- `CartItem` / `DiscountResult` models for discount calculation.
+- `IPromotionService`: Create, GetById, Activate (triggers pre-issue), Pause, GetActiveForShop.
+- `ICouponService`: Issue, Validate, Redeem, GetForMember.
+- `IDiscountEngine`: CalculateAsync(cartItems, memberId, shopId) — stackable filter per ADR-020.
+- `PromotionService` stub: in-memory dict; `ActivateAsync` calls `ICouponService.IssueAsync` for coupon pre-issue (ADR-013).
+- `CouponService` stub: in-memory dict; validates expiry and already-redeemed guard before redeem.
+- `DiscountEngine` stub: retrieves active stackable promotions; formula evaluation deferred to Sprint 4.
+
+**Module 2 — Sales (`M2.Domain/Sales/`, `M2.Infrastructure/Sales/`)**
+- `SalesTransaction` entity: MemberId (nullable — guest allowed), CashierId (SAP employee), TotalAmount/DiscountAmount computed from line items, PaymentMethod, Status, CompletedAt/VoidedAt.
+- `SalesLineItem` entity: FK to transaction, ProductId/Name bilingual split, Qty, UnitPrice, DiscountAmount, LineTotal.
+- `ReturnTransaction` entity: FK to original, Reason, RefundAmount, RefundMethod (enforced = original payment ADR-016), ProcessedAt.
+- `ISalesService`: CreateTransaction, CompleteTransaction, VoidTransaction, GetById.
+- `IReturnService`: InitiateReturn (validates status=Completed + enforces original payment method), CompleteReturn.
+- `IEcrService`: interface stub only — ECR deferred post-MVP per ADR-009, no implementation.
+- `SalesService` stub: AddLineItem auto-recalculates TotalAmount/DiscountAmount on transaction.
+- `ReturnService` stub: fetches original tx, copies PaymentMethod as RefundMethod before creating return.
+
+**Module 3 — Attendance (`M2.Domain/Attendance/`, `M2.Infrastructure/Attendance/`)**
+- `AttendanceRecord` entity: EmployeeId (SAP), ClockInAt, ClockOutAt (nullable), Source enum (Manual/SapSync), Notes.
+- `AttendanceSummary` value object (record): EmployeeId, Date, TotalHours, IsComplete.
+- `IAttendanceService`: ClockIn, ClockOut, GetRecordsForEmployee, GetDailySummary.
+- `AttendanceService` stub: guards against double clock-in; calculates TotalHours from complete records.
+
+**Infra / BFF wiring:**
+- `M2DbContext`: added DbSets for Promotion, Coupon, PromotionProduct, SalesTransaction, SalesLineItem, ReturnTransaction, AttendanceRecord.
+- `InfrastructureServiceExtensions`: registered all 6 Sprint 3 services (ICouponService before IPromotionService — injection order matters).
+- `M2PortalBff`: `PromotionEndpoints` + `AttendanceAdminEndpoints` mapped.
+- `MekaPromosBff`: `CouponEndpoints` mapped (member coupons + POS coupon redeem).
+- `MekaPosBff`: `SalesEndpoints` + `AttendanceEndpoints` mapped (clock-in/out staff-facing).
+- `dotnet build`: **0 errors, 0 warnings**.
+
+**Key implementation decisions:**
+- `ICouponService` registered before `IPromotionService` in DI so `PromotionService(ICouponService, ...)` constructor injection resolves.
+- `DiscountEngine` receives `IPromotionService` — uses empty Guid for tenant in stub (real tenant resolution deferred to EF wiring Sprint 4).
+- `SalesTransaction.AddLineItem()` is the aggregate root for line item management; recalculation is internal.
+- `ReturnTransaction.RefundMethod` is set from the original transaction at initiation time — not passed by caller — enforcing ADR-016 at the domain boundary.
+- `IEcrService` has no implementation class at all (not even a no-op) — consumers must wait for ECR vendor selection.
+- Clock-in guard in `AttendanceService`: returns `Result.Failure` if employee already has an open record in same tenant.
+
+**Gotcha — pre-existing Sales enum stubs:**
+The repo already had `ReturnStatus.cs` and `TransactionStatus.cs` committed from a prior stub session. These compiled cleanly alongside the new `SalesStatus.cs` and `PaymentMethod.cs` — no conflicts.

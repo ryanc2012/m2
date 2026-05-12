@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../sales/cart_screen.dart';
+import '../member_lookup/member_lookup_screen.dart';
+import '../returns/return_screen.dart';
+import '../attendance/clock_in_out_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -16,16 +20,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const _navItems = [
     NavigationDestination(icon: Icon(Icons.home_outlined), label: '首頁'),
     NavigationDestination(icon: Icon(Icons.point_of_sale_outlined), label: '銷售'),
+    NavigationDestination(icon: Icon(Icons.person_search_outlined), label: '會員'),
+    NavigationDestination(icon: Icon(Icons.assignment_return_outlined), label: '退貨'),
     NavigationDestination(icon: Icon(Icons.access_time_outlined), label: '考勤'),
-    NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: '收貨'),
   ];
 
-  // Placeholder bodies — filled in Sprint 2/3.
   static const _bodies = [
     _PlaceholderBody(label: '首頁'),
-    _PlaceholderBody(label: '銷售'),
-    _PlaceholderBody(label: '考勤'),
-    _PlaceholderBody(label: '收貨'),
+    CartScreen(),
+    MemberLookupScreen(),
+    ReturnScreen(),
+    ClockInOutScreen(),
   ];
 
   Future<void> _signOut() async {

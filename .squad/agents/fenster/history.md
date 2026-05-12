@@ -72,7 +72,59 @@
 #### Files Written
 - `docs/backlog/FRONTEND-BACKLOG.md` — comprehensive frontend product backlog, all three apps
 
-### 2026-05-12 — Cross-Agent Context (from Initial Planning Session)
+### 2026-05-12 — Sprint 2: Member Registration UI + Approval Workflow UI
+
+#### What Was Built
+
+**meka-promos (Flutter)**
+- **Registration flow** (`lib/features/registration/`):
+  - `registration_screen.dart` — phone number input, locale switcher (ZHT/ZHS/EN), Send OTP; validates Malaysian phone format
+  - `otp_verification_screen.dart` — 6-digit OTP with per-cell auto-focus, paste support on first cell, 60-second countdown timer, auto-submit on final digit, resend flow
+  - `profile_setup_screen.dart` — bilingual name fields (ZHT last/first + EN first/last) + email; calls RegistrationService; sets `memberSessionProvider` on success; navigates to `/`
+  - `registration_service.dart` — Dio stubs: `sendOtp`, `verifyOtp`, `register`; `registrationPhoneProvider` for phone persistence across screens
+- **Profile** (`lib/features/profile/`):
+  - `profile_screen.dart` — member name (EN + ZHT), phone, prominent QR code via `QrImageView` (qr_flutter 4.1.0), memberSince, "Edit Profile" button; uses `memberSessionProvider` first, falls back to `memberProfileProvider` (API), error+retry state
+  - `edit_profile_screen.dart` — editable name fields (ZHT+EN rows), email; phone read-only; updates `memberSessionProvider` and invalidates API cache; `AppBar` Save action
+  - `profile_service.dart` — `MemberProfile` model (id, phone, firstNameZht/En, lastNameZht/En, email, qrCode, memberSince); `ProfileService` Dio stubs; `memberProfileProvider`; `memberSessionProvider` (auth guard state)
+- **go_router** added (`^14.3.0`):
+  - Routes: `/` (HomeScreen), `/registration`, `/registration/otp`, `/registration/profile`, `/profile/edit`
+  - Auth guard via `_RouterRefresher` (ChangeNotifier) bridging `memberSessionProvider` to `refreshListenable`
+  - Unauthenticated → `/registration`; authenticated → prevents `/registration` redirect loop
+- **`app.dart`** converted from `MaterialApp` + `home:` to `ConsumerStatefulWidget` + `MaterialApp.router`
+- **`home_screen.dart`** updated: Profile tab + My QR tab both render `ProfileScreen`; sign-out clears `memberSessionProvider`; nav labels are l10n-resolved
+- **ARB files** (all 3: EN/ZHT/ZHS) extended with 17 new keys: `phoneNumber`, `sendOtp`, `otpVerification`, `otpSentTo`, `resendIn`, `resendOtp`, `profileSetup`, `firstNameZht/En`, `lastNameZht/En`, `emailAddress`, `completeRegistration`, `editProfile`, `save`, `cancel`, `memberCard`, `memberSince`, `phone`, `registrationTitle`, `registrationSubtitle`
+- `flutter pub get` ✅
+
+**m2-portal (Blazor)**
+- **`Pages/Approvals/ApprovalList.razor` + `.razor.cs`** — `[Authorize]`, table of pending approvals (EntityType, EntityId, RequestedBy, RequestedAt, Status chip, Actions); inline Approve/Reject buttons with snackbar feedback; Details link → detail page; Policy Settings button
+- **`Pages/Approvals/ApprovalDetail.razor` + `.razor.cs`** — `[Authorize]`; breadcrumbs; full-width pending action banner (ADR-approved prominence pattern); split layout (left: details card + `MudTimeline` history; right: comment TextField + Approve/Reject/Escalate buttons); navigates back to list on action
+- **`Pages/Approvals/ApprovalPolicySettings.razor` + `.razor.cs`** — `[Authorize]`; table with inline edit per entity type: EscalationMode dropdown (SAP HCM Hierarchy / Step-by-step Position — ADR-014), MaxLevels numeric field; optimistic in-memory update on save
+- **`Services/ApprovalService.cs`** — HttpClient-based stub; records: `ApprovalRequest`, `ApprovalDetailDto` (renamed to avoid conflict with Razor partial class), `ApprovalStep`, `ApprovalPolicyConfig`; enums: `ApprovalStatus`, `EscalationMode`
+- **`Shared/NavMenu.razor`** — "Approvals" link added with `MudBadge` showing `_pendingCount` (static 0 for now, Sprint 3 will wire SignalR)
+- **`Program.cs`** — `ApprovalService` registered via typed `HttpClient`; `M2PortalBff:BaseUrl` from config
+- `dotnet build` ✅ (0 errors, 0 warnings)
+
+#### Key Technical Decisions Made
+
+1. **`qr_flutter` 4.1.0** chosen for QR display — `QrImageView` widget wraps the qr package, white background container for camera readability, `QrVersions.auto` for data-size-appropriate encoding
+2. **`memberSessionProvider` as auth source** (not `authStateProvider` MSAL) — phone-OTP registration is the primary consumer auth path; MSAL `authStateProvider` retained for future multi-account interop
+3. **`_RouterRefresher extends ChangeNotifier`** pattern for go_router + Riverpod bridge — avoids recreating `GoRouter` on every build; `ref.listen` in `build()` fires `refresh()` on session state changes
+4. **`ConsumerStatefulWidget` for `MekaPromosApp`** — required to hold `_router` and `_refresher` as late finals, avoiding go_router recreation on rebuild
+5. **`ApprovalDetailDto`** naming — service DTO renamed to avoid C# namespace conflict with the Razor `partial class ApprovalDetail` in `M2Portal.Pages.Approvals`
+6. **OTP paste via `maxLength: 6` on first cell** — first cell accepts up to 6 chars; `_onDigitChanged` distributes pasted digits across all 6 fields; others accept 1 char to handle manual entry auto-advance
+7. **MudTimeline for approval history** — `TimelinePosition.Start` keeps actor/event info cleanly left-aligned; icon colour maps to approval status (success/error/info/warning)
+8. **Inline edit in ApprovalPolicySettings** — avoids a separate edit dialog/page for simple two-field updates; row swaps between read and edit mode controlled by `_editingEntityType` string
+
+#### Watch-Outs for Sprint 3
+
+- **`memberSessionProvider` persistence**: Currently in-memory only — cleared on app restart. Need `shared_preferences` to persist the session token across restarts (noted in Sprint 1 learnings).
+- **OTP auto-read (Android SMS Retriever)**: The OTP screen has the UI wired but no Android SMS Retriever integration yet. Sprint 3 should add `sms_autofill` or similar plugin.
+- **QR brightness boost**: `SystemChrome` brightness override for My QR / Profile tabs when QR is on screen is not yet implemented. Needed per the UX pattern noted in Sprint 1 learnings.
+- **`_pendingCount` in NavMenu**: Static 0. Sprint 3 SignalR integration (ADR-005) should push live pending count to update the badge.
+- **`AuthorizeAttribute` on Approvals pages**: Already set — but `ApprovalPolicySettings` may need an additional role check (admin-only) in Sprint 3 once authorization module is wired.
+- **`ApprovalDetailDto` vs `ApprovalDetail`** naming: The DTO is `ApprovalDetailDto` to avoid the Blazor component class collision. Ensure any new usages reference `M2Portal.Services.ApprovalDetailDto`.
+
+
 
 **From Keyser (Architecture) — resolves open questions:**
 - **D7 (SignalR) resolved:** ADR-005 confirms Notification module uses SignalR for Blazor web. Hub co-located with `M2PortalBff`. `NotificationBell` and `NotificationDropdownPanel` can be implemented against SignalR — no polling fallback needed unless SignalR unavailable.

@@ -1,3 +1,16 @@
+# .NET build outputs
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+.vs/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+TestResults/
+
 # Squad: ignore runtime state (logs, inbox, sessions)
 .squad/orchestration-log/
 .squad/log/

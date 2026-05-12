@@ -10,6 +10,11 @@
 
 <!-- Append learnings below -->
 
+## Sprint Planning (2026-05-12)
+
+- Produced initial 4-sprint plan sequencing backend platform, approval, notification, member, promotions, sales, attendance, goods receipt, and SAP integration.
+- Critical path and parallelizable work identified; all open questions resolved.
+
 ### 2026-05-12 — Open Questions Resolved
 
 All 14 Open Questions from the initial planning phase have been promoted to formal ADRs (ADR-009 through ADR-022) in `.squad/decisions.md`. The Open Questions table was removed and replaced with a resolution note. This closes the loop on all pending architectural and business decisions for MVP scope, ensuring clarity and traceability for future work.

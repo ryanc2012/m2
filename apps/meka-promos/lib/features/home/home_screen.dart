@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/profile/profile_screen.dart';
 import '../../features/profile/profile_service.dart';
+import '../../features/promotions/promotions_screen.dart';
+import '../../features/coupons/coupons_screen.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -29,6 +31,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         label: l10n.promotions,
       ),
       NavigationDestination(
+        icon: const Icon(Icons.confirmation_number_outlined),
+        label: l10n.coupons,
+      ),
+      NavigationDestination(
         icon: const Icon(Icons.qr_code_outlined),
         label: l10n.myQr,
       ),
@@ -43,7 +49,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ];
 
     final bodies = [
-      _PlaceholderBody(label: l10n.promotions),
+      const PromotionsScreen(),
+      const CouponsScreen(),
       // My QR tab — show profile screen which includes the QR card prominently
       const ProfileScreen(),
       _PlaceholderBody(label: l10n.notifications),

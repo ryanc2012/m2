@@ -99,5 +99,8 @@
   "@registrationTitle": { "description": "Registration screen title" },
 
   "registrationSubtitle": "输入您的电话号码以开始",
-  "@registrationSubtitle": { "description": "Registration screen subtitle" }
+  "@registrationSubtitle": { "description": "Registration screen subtitle" },
+
+  "coupons": "优惠券",
+  "@coupons": { "description": "Coupons nav item" }
 }

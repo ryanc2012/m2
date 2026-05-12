@@ -653,6 +653,587 @@ partial class M2DbContextModelSnapshot : ModelSnapshot
             b.ToTable("notification_logs", "m2");
         });
 
+        // ── Sprint 3 entities ────────────────────────────────────────────────
+
+        modelBuilder.Entity("M2.Domain.Promotions.Promotion", b =>
+        {
+            b.Property<Guid>("Id")
+                .HasColumnType("uuid")
+                .HasColumnName("Id");
+
+            b.Property<Guid?>("ApprovalRequestId")
+                .HasColumnType("uuid")
+                .HasColumnName("ApprovalRequestId");
+
+            b.Property<DateTimeOffset>("CreatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("CreatedAt");
+
+            b.Property<string>("CreatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("CreatedBy");
+
+            b.Property<DateTimeOffset?>("DeletedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("DeletedAt");
+
+            b.Property<string>("DeletedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("DeletedBy");
+
+            b.Property<DateTimeOffset>("EndDate")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("EndDate");
+
+            b.Property<string>("FormulaJson")
+                .IsRequired()
+                .HasColumnType("text")
+                .HasColumnName("FormulaJson");
+
+            b.Property<bool>("IsDeleted")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsDeleted");
+
+            b.Property<bool>("IsStackable")
+                .HasColumnType("boolean")
+                .HasColumnName("IsStackable");
+
+            b.Property<Guid>("ShopId")
+                .HasColumnType("uuid")
+                .HasColumnName("ShopId");
+
+            b.Property<DateTimeOffset>("StartDate")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("StartDate");
+
+            b.Property<string>("Status")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("Status");
+
+            b.Property<Guid>("TenantId")
+                .HasColumnType("uuid")
+                .HasColumnName("TenantId");
+
+            b.Property<string>("Type")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("Type");
+
+            b.Property<DateTimeOffset?>("UpdatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("UpdatedAt");
+
+            b.Property<string>("UpdatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("UpdatedBy");
+
+            b.HasKey("Id");
+
+            b.HasIndex("TenantId", "ShopId", "Status")
+                .HasDatabaseName("IX_promotions_TenantId_ShopId_Status");
+
+            b.ToTable("promotions", "m2");
+
+            b.OwnsOne("M2.SharedKernel.BilingualText", "Name", b1 =>
+            {
+                b1.Property<Guid>("PromotionId")
+                    .HasColumnType("uuid");
+
+                b1.Property<string>("En")
+                    .IsRequired()
+                    .HasMaxLength(500)
+                    .HasColumnType("character varying(500)")
+                    .HasColumnName("Name_en");
+
+                b1.Property<string>("Zht")
+                    .IsRequired()
+                    .HasMaxLength(500)
+                    .HasColumnType("character varying(500)")
+                    .HasColumnName("Name_zht");
+
+                b1.HasKey("PromotionId");
+                b1.ToTable("promotions", "m2");
+                b1.WithOwner().HasForeignKey("PromotionId");
+            });
+        });
+
+        modelBuilder.Entity("M2.Domain.Promotions.Coupon", b =>
+        {
+            b.Property<Guid>("Id")
+                .HasColumnType("uuid")
+                .HasColumnName("Id");
+
+            b.Property<string>("Code")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("Code");
+
+            b.Property<DateTimeOffset>("CreatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("CreatedAt");
+
+            b.Property<string>("CreatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("CreatedBy");
+
+            b.Property<DateTimeOffset?>("DeletedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("DeletedAt");
+
+            b.Property<string>("DeletedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("DeletedBy");
+
+            b.Property<DateTimeOffset>("ExpiresAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("ExpiresAt");
+
+            b.Property<bool>("IsDeleted")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsDeleted");
+
+            b.Property<bool>("IsRedeemed")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsRedeemed");
+
+            b.Property<DateTimeOffset>("IssuedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("IssuedAt");
+
+            b.Property<Guid?>("MemberId")
+                .HasColumnType("uuid")
+                .HasColumnName("MemberId");
+
+            b.Property<Guid>("PromotionId")
+                .HasColumnType("uuid")
+                .HasColumnName("PromotionId");
+
+            b.Property<DateTimeOffset?>("RedeemedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("RedeemedAt");
+
+            b.Property<Guid>("ShopId")
+                .HasColumnType("uuid")
+                .HasColumnName("ShopId");
+
+            b.Property<Guid>("TenantId")
+                .HasColumnType("uuid")
+                .HasColumnName("TenantId");
+
+            b.Property<DateTimeOffset?>("UpdatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("UpdatedAt");
+
+            b.Property<string>("UpdatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("UpdatedBy");
+
+            b.HasKey("Id");
+
+            b.HasIndex("Code")
+                .IsUnique()
+                .HasDatabaseName("IX_coupons_Code");
+
+            b.HasIndex("MemberId", "IsRedeemed")
+                .HasDatabaseName("IX_coupons_MemberId_IsRedeemed");
+
+            b.HasIndex("PromotionId", "IsRedeemed")
+                .HasDatabaseName("IX_coupons_PromotionId_IsRedeemed");
+
+            b.ToTable("coupons", "m2");
+        });
+
+        modelBuilder.Entity("M2.Domain.Promotions.PromotionProduct", b =>
+        {
+            b.Property<Guid>("PromotionId")
+                .HasColumnType("uuid")
+                .HasColumnName("PromotionId");
+
+            b.Property<string>("ProductId")
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnType("character varying(100)")
+                .HasColumnName("ProductId");
+
+            b.Property<decimal>("DiscountValue")
+                .HasColumnType("numeric(18,2)")
+                .HasColumnName("DiscountValue");
+
+            b.HasKey("PromotionId", "ProductId");
+
+            b.ToTable("promotion_products", "m2");
+        });
+
+        modelBuilder.Entity("M2.Domain.Sales.SalesTransaction", b =>
+        {
+            b.Property<Guid>("Id")
+                .HasColumnType("uuid")
+                .HasColumnName("Id");
+
+            b.Property<string>("CashierId")
+                .IsRequired()
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("CashierId");
+
+            b.Property<DateTimeOffset?>("CompletedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("CompletedAt");
+
+            b.Property<DateTimeOffset>("CreatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("CreatedAt");
+
+            b.Property<string>("CreatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("CreatedBy");
+
+            b.Property<DateTimeOffset?>("DeletedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("DeletedAt");
+
+            b.Property<string>("DeletedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("DeletedBy");
+
+            b.Property<decimal>("DiscountAmount")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("numeric(18,2)")
+                .HasDefaultValue(0m)
+                .HasColumnName("DiscountAmount");
+
+            b.Property<bool>("IsDeleted")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsDeleted");
+
+            b.Property<Guid?>("MemberId")
+                .HasColumnType("uuid")
+                .HasColumnName("MemberId");
+
+            b.Property<string>("PaymentMethod")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("PaymentMethod");
+
+            b.Property<Guid>("ShopId")
+                .HasColumnType("uuid")
+                .HasColumnName("ShopId");
+
+            b.Property<string>("Status")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("Status");
+
+            b.Property<Guid>("TenantId")
+                .HasColumnType("uuid")
+                .HasColumnName("TenantId");
+
+            b.Property<decimal>("TotalAmount")
+                .HasColumnType("numeric(18,2)")
+                .HasColumnName("TotalAmount");
+
+            b.Property<DateTimeOffset?>("UpdatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("UpdatedAt");
+
+            b.Property<string>("UpdatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("UpdatedBy");
+
+            b.Property<DateTimeOffset?>("VoidedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("VoidedAt");
+
+            b.HasKey("Id");
+
+            b.HasIndex("MemberId")
+                .HasDatabaseName("IX_sales_transactions_MemberId");
+
+            b.HasIndex("TenantId", "ShopId", "Status")
+                .HasDatabaseName("IX_sales_transactions_TenantId_ShopId_Status");
+
+            b.ToTable("sales_transactions", "m2");
+        });
+
+        modelBuilder.Entity("M2.Domain.Sales.SalesLineItem", b =>
+        {
+            b.Property<Guid>("Id")
+                .HasColumnType("uuid")
+                .HasColumnName("Id");
+
+            b.Property<DateTimeOffset>("CreatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("CreatedAt");
+
+            b.Property<string>("CreatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("CreatedBy");
+
+            b.Property<DateTimeOffset?>("DeletedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("DeletedAt");
+
+            b.Property<string>("DeletedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("DeletedBy");
+
+            b.Property<decimal>("DiscountAmount")
+                .HasColumnType("numeric(18,2)")
+                .HasColumnName("DiscountAmount");
+
+            b.Property<bool>("IsDeleted")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsDeleted");
+
+            b.Property<decimal>("LineTotal")
+                .HasColumnType("numeric(18,2)")
+                .HasColumnName("LineTotal");
+
+            b.Property<string>("ProductId")
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnType("character varying(100)")
+                .HasColumnName("ProductId");
+
+            b.Property<string>("ProductNameEn")
+                .IsRequired()
+                .HasMaxLength(500)
+                .HasColumnType("character varying(500)")
+                .HasColumnName("ProductName_en");
+
+            b.Property<string>("ProductNameZht")
+                .IsRequired()
+                .HasMaxLength(500)
+                .HasColumnType("character varying(500)")
+                .HasColumnName("ProductName_zht");
+
+            b.Property<int>("Quantity")
+                .HasColumnType("integer")
+                .HasColumnName("Quantity");
+
+            b.Property<Guid>("ShopId")
+                .HasColumnType("uuid")
+                .HasColumnName("ShopId");
+
+            b.Property<Guid>("TenantId")
+                .HasColumnType("uuid")
+                .HasColumnName("TenantId");
+
+            b.Property<Guid>("TransactionId")
+                .HasColumnType("uuid")
+                .HasColumnName("TransactionId");
+
+            b.Property<decimal>("UnitPrice")
+                .HasColumnType("numeric(18,2)")
+                .HasColumnName("UnitPrice");
+
+            b.Property<DateTimeOffset?>("UpdatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("UpdatedAt");
+
+            b.Property<string>("UpdatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("UpdatedBy");
+
+            b.HasKey("Id");
+
+            b.HasIndex("TransactionId")
+                .HasDatabaseName("IX_sales_line_items_TransactionId");
+
+            b.ToTable("sales_line_items", "m2");
+        });
+
+        modelBuilder.Entity("M2.Domain.Sales.ReturnTransaction", b =>
+        {
+            b.Property<Guid>("Id")
+                .HasColumnType("uuid")
+                .HasColumnName("Id");
+
+            b.Property<DateTimeOffset>("CreatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("CreatedAt");
+
+            b.Property<string>("CreatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("CreatedBy");
+
+            b.Property<DateTimeOffset?>("DeletedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("DeletedAt");
+
+            b.Property<string>("DeletedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("DeletedBy");
+
+            b.Property<bool>("IsComplete")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsComplete");
+
+            b.Property<bool>("IsDeleted")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsDeleted");
+
+            b.Property<Guid>("OriginalTransactionId")
+                .HasColumnType("uuid")
+                .HasColumnName("OriginalTransactionId");
+
+            b.Property<DateTimeOffset?>("ProcessedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("ProcessedAt");
+
+            b.Property<string>("Reason")
+                .IsRequired()
+                .HasColumnType("text")
+                .HasColumnName("Reason");
+
+            b.Property<decimal>("RefundAmount")
+                .HasColumnType("numeric(18,2)")
+                .HasColumnName("RefundAmount");
+
+            b.Property<string>("RefundMethod")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("RefundMethod");
+
+            b.Property<Guid>("ShopId")
+                .HasColumnType("uuid")
+                .HasColumnName("ShopId");
+
+            b.Property<Guid>("TenantId")
+                .HasColumnType("uuid")
+                .HasColumnName("TenantId");
+
+            b.Property<DateTimeOffset?>("UpdatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("UpdatedAt");
+
+            b.Property<string>("UpdatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("UpdatedBy");
+
+            b.HasKey("Id");
+
+            b.HasIndex("OriginalTransactionId")
+                .HasDatabaseName("IX_return_transactions_OriginalTransactionId");
+
+            b.ToTable("return_transactions", "m2");
+        });
+
+        modelBuilder.Entity("M2.Domain.Attendance.AttendanceRecord", b =>
+        {
+            b.Property<Guid>("Id")
+                .HasColumnType("uuid")
+                .HasColumnName("Id");
+
+            b.Property<DateTimeOffset>("ClockInAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("ClockInAt");
+
+            b.Property<DateTimeOffset?>("ClockOutAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("ClockOutAt");
+
+            b.Property<DateTimeOffset>("CreatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("CreatedAt");
+
+            b.Property<string>("CreatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("CreatedBy");
+
+            b.Property<DateTimeOffset?>("DeletedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("DeletedAt");
+
+            b.Property<string>("DeletedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("DeletedBy");
+
+            b.Property<string>("EmployeeId")
+                .IsRequired()
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("EmployeeId");
+
+            b.Property<bool>("IsDeleted")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("boolean")
+                .HasDefaultValue(false)
+                .HasColumnName("IsDeleted");
+
+            b.Property<string>("Notes")
+                .HasColumnType("text")
+                .HasColumnName("Notes");
+
+            b.Property<Guid>("ShopId")
+                .HasColumnType("uuid")
+                .HasColumnName("ShopId");
+
+            b.Property<string>("Source")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("character varying(50)")
+                .HasColumnName("Source");
+
+            b.Property<Guid>("TenantId")
+                .HasColumnType("uuid")
+                .HasColumnName("TenantId");
+
+            b.Property<DateTimeOffset?>("UpdatedAt")
+                .HasColumnType("timestamp with time zone")
+                .HasColumnName("UpdatedAt");
+
+            b.Property<string>("UpdatedBy")
+                .HasMaxLength(256)
+                .HasColumnType("character varying(256)")
+                .HasColumnName("UpdatedBy");
+
+            b.HasKey("Id");
+
+            b.HasIndex("TenantId", "EmployeeId", "ClockInAt")
+                .HasDatabaseName("IX_attendance_records_TenantId_EmployeeId_ClockInAt");
+
+            b.ToTable("attendance_records", "m2");
+        });
+
         // ── relationships ────────────────────────────────────────────────────
         modelBuilder.Entity("M2.Domain.Members.OtpRequest", b =>
         {
@@ -677,6 +1258,42 @@ partial class M2DbContextModelSnapshot : ModelSnapshot
             b.HasOne("M2.Domain.Notifications.NotificationTemplate", "Template")
                 .WithMany("Logs")
                 .HasForeignKey("NotificationTemplateId")
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired();
+        });
+
+        modelBuilder.Entity("M2.Domain.Promotions.Coupon", b =>
+        {
+            b.HasOne("M2.Domain.Promotions.Promotion", null)
+                .WithMany("Coupons")
+                .HasForeignKey("PromotionId")
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
+        });
+
+        modelBuilder.Entity("M2.Domain.Promotions.PromotionProduct", b =>
+        {
+            b.HasOne("M2.Domain.Promotions.Promotion", null)
+                .WithMany("Products")
+                .HasForeignKey("PromotionId")
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
+        });
+
+        modelBuilder.Entity("M2.Domain.Sales.SalesLineItem", b =>
+        {
+            b.HasOne("M2.Domain.Sales.SalesTransaction", null)
+                .WithMany("LineItems")
+                .HasForeignKey("TransactionId")
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
+        });
+
+        modelBuilder.Entity("M2.Domain.Sales.ReturnTransaction", b =>
+        {
+            b.HasOne("M2.Domain.Sales.SalesTransaction", null)
+                .WithMany()
+                .HasForeignKey("OriginalTransactionId")
                 .OnDelete(DeleteBehavior.Restrict)
                 .IsRequired();
         });

@@ -1,0 +1,112 @@
+@page "/promotions"
+@attribute [Authorize]
+@using M2Portal.Services
+
+<PageTitle>Promotions — M2 Portal</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Promotions</MudText>
+    <MudSpacer />
+    <MudButton Href="promotions/create"
+               Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               Size="Size.Small">
+        New Promotion
+    </MudButton>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+else if (_promotions.Count == 0)
+{
+    <MudPaper Class="pa-8" Elevation="0" Outlined="true">
+        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.LocalOffer"
+                     Size="Size.Large"
+                     Color="Color.Default" />
+            <MudText Typo="Typo.h6">No promotions yet</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Create your first promotion to get started.
+            </MudText>
+        </MudStack>
+    </MudPaper>
+}
+else
+{
+    <MudTable T="PromotionSummary"
+              Items="_promotions"
+              Hover="true"
+              Dense="true"
+              Elevation="2"
+              Class="rounded-lg">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Type</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Start Date</MudTh>
+            <MudTh>End Date</MudTh>
+            <MudTh>Stackable</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.body2" Style="font-weight:600">@context.NameZht</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@context.NameEn</MudText>
+                </MudStack>
+            </MudTd>
+            <MudTd DataLabel="Type">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                    @context.Type
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string"
+                         Color="@StatusColor(context.Status)"
+                         Size="Size.Small"
+                         Variant="Variant.Filled">
+                    @context.Status
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Start Date">@context.StartDate.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="End Date">@context.EndDate.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Stackable">
+                @if (context.IsStackable)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                             Color="Color.Success"
+                             Size="Size.Small" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Cancel"
+                             Color="Color.Default"
+                             Size="Size.Small" />
+                }
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                <MudButtonGroup Size="Size.Small" Variant="Variant.Text">
+                    <MudButton Href="@($"promotions/{context.Id}")"
+                               StartIcon="@Icons.Material.Filled.OpenInNew">
+                        View
+                    </MudButton>
+                    @if (context.Status == PromotionStatus.Draft)
+                    {
+                        <MudButton Href="@($"promotions/{context.Id}/edit")"
+                                   StartIcon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Default">
+                            Edit
+                        </MudButton>
+                    }
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}

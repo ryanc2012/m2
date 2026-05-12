@@ -32,6 +32,13 @@ builder.Services.AddHttpClient<M2Portal.Services.ApprovalService>(client =>
         builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
 });
 
+// Promotion service — calls M2PortalBff (same base URL)
+builder.Services.AddHttpClient<M2Portal.Services.PromotionService>(client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
+});
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

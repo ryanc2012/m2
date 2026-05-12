@@ -1,0 +1,98 @@
+@page "/promotions/create"
+@attribute [Authorize]
+@using M2Portal.Services
+
+<PageTitle>New Promotion — M2 Portal</PageTitle>
+
+<MudBreadcrumbs Items="_breadcrumbs" Class="mb-4" />
+
+<MudText Typo="Typo.h4" Class="mb-6">New Promotion</MudText>
+
+<MudPaper Class="pa-6" Elevation="2" Style="max-width:720px">
+    <MudForm @ref="_form">
+        <MudGrid Spacing="3">
+
+            {{! Bilingual name fields }}
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="_nameZht"
+                              Label="Name (Traditional Chinese / ZHT)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="ZHT name is required." />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="_nameEn"
+                              Label="Name (English / EN)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="English name is required." />
+            </MudItem>
+
+            {{! Type }}
+            <MudItem xs="12" md="6">
+                <MudSelect @bind-Value="_type"
+                           Label="Promotion Type"
+                           Variant="Variant.Outlined"
+                           Required="true">
+                    @foreach (var t in Enum.GetValues<PromotionType>())
+                    {
+                        <MudSelectItem Value="@t">@t</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            {{! IsStackable }}
+            <MudItem xs="12" md="6" Class="d-flex align-center">
+                <MudSwitch @bind-Value="_isStackable"
+                           Label="Allow Stacking with Other Promotions"
+                           Color="Color.Primary" />
+            </MudItem>
+
+            {{! Date pickers }}
+            <MudItem xs="12" md="6">
+                <MudDatePicker @bind-Date="_startDate"
+                               Label="Start Date"
+                               Variant="Variant.Outlined"
+                               Required="true"
+                               DateFormat="yyyy-MM-dd" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudDatePicker @bind-Date="_endDate"
+                               Label="End Date"
+                               Variant="Variant.Outlined"
+                               Required="true"
+                               DateFormat="yyyy-MM-dd" />
+            </MudItem>
+
+            {{! FormulaJson textarea }}
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_formulaJson"
+                              Label="Formula JSON"
+                              Variant="Variant.Outlined"
+                              Lines="6"
+                              HelperText='e.g. {"discountPercent":10} — raw JSON for MVP'
+                              Required="true"
+                              RequiredError="Formula JSON is required." />
+            </MudItem>
+
+            {{! Actions }}
+            <MudItem xs="12">
+                <MudStack Row="true" Spacing="2" Justify="Justify.FlexEnd">
+                    <MudButton Href="promotions"
+                               Variant="Variant.Text"
+                               Disabled="_submitting">
+                        Cancel
+                    </MudButton>
+                    <MudButton OnClick="SubmitAsync"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Disabled="_submitting"
+                               StartIcon="@Icons.Material.Filled.Save">
+                        @(_submitting ? "Saving..." : "Create Promotion")
+                    </MudButton>
+                </MudStack>
+            </MudItem>
+
+        </MudGrid>
+    </MudForm>
+</MudPaper>

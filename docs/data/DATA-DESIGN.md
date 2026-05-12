@@ -217,9 +217,9 @@ CREATE TABLE GoodsReceipt (
 
 ### Pending tables (Sprint 2+)
 - ~~Members (Sprint 2)~~ — **delivered**
-- Promotions (Sprint 3)
-- Sales (Sprint 3)
-- Attendance (Sprint 3)
+- ~~Promotions (Sprint 3)~~ — **delivered**
+- ~~Sales (Sprint 3)~~ — **delivered**
+- ~~Attendance (Sprint 3)~~ — **delivered**
 - GoodsReceipts (Sprint 4)
 
 ---
@@ -356,4 +356,126 @@ Migration: `20260512010000_Sprint2_MembersApprovalsNotifications`
 
 **Indexes:** (NotificationTemplateId)
 
+---
+
+## Sprint 3 Tables — Promotions, Sales, Attendance
+
+Migration: `20260512020000_Sprint3_PromotionsSalesAttendance`
+
+### promotions
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | uuid PK | Client-assigned GUID |
+| TenantId | uuid NOT NULL | Multi-tenancy discriminator |
+| ShopId | uuid NOT NULL | Multi-store discriminator |
+| Name_en | varchar(500) NOT NULL | Bilingual owned value |
+| Name_zht | varchar(500) NOT NULL | Bilingual owned value |
+| Type | varchar(50) NOT NULL | Enum: PercentDiscount/FixedDiscount/BuyXGetY/Bundle |
+| Status | varchar(50) NOT NULL | Enum: Draft/PendingApproval/Active/Paused/Expired |
+| FormulaJson | text NOT NULL | Discount formula parameters as JSON |
+| StartDate | timestamptz NOT NULL | |
+| EndDate | timestamptz NOT NULL | |
+| IsStackable | boolean NOT NULL | Whether stacks with other promotions |
+| ApprovalRequestId | uuid NULL | Cross-module ref to approval_requests (no FK constraint, ADR-001) |
+| + audit/soft-delete columns | | Standard BaseEntity columns |
+
+**Indexes:** (TenantId, ShopId, Status)
+
+### coupons
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | uuid PK | |
+| TenantId | uuid NOT NULL | |
+| ShopId | uuid NOT NULL | |
+| PromotionId | uuid NOT NULL FK → promotions | Cascade delete |
+| MemberId | uuid NULL | Cross-module ref to members (no FK constraint, ADR-001) |
+| Code | varchar(50) NOT NULL | |
+| IssuedAt | timestamptz NOT NULL | |
+| RedeemedAt | timestamptz NULL | |
+| ExpiresAt | timestamptz NOT NULL | |
+| IsRedeemed | boolean NOT NULL | Default false |
+| + audit/soft-delete columns | | Standard BaseEntity columns |
+
+**Indexes:** UNIQUE (Code) · (PromotionId, IsRedeemed) · (MemberId, IsRedeemed)
+
+### promotion_products
+
+| Column | Type | Notes |
+|--------|------|-------|
+| PromotionId | uuid PK (composite) FK → promotions | Cascade delete |
+| ProductId | varchar(100) PK (composite) | SAP product code |
+| DiscountValue | numeric(18,2) NOT NULL | Per-product override discount |
+
+### sales_transactions
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | uuid PK | |
+| TenantId | uuid NOT NULL | |
+| ShopId | uuid NOT NULL | |
+| MemberId | uuid NULL | Cross-module ref to members (no FK constraint, ADR-001) |
+| CashierId | varchar(256) NOT NULL | SAP employee code |
+| TotalAmount | numeric(18,2) NOT NULL | |
+| DiscountAmount | numeric(18,2) NOT NULL | Default 0 |
+| PaymentMethod | varchar(50) NOT NULL | Enum: Cash/CreditCard/QrPay/Voucher |
+| Status | varchar(50) NOT NULL | Enum: Pending/Completed/Voided/Refunded |
+| CompletedAt | timestamptz NULL | |
+| VoidedAt | timestamptz NULL | |
+| + audit/soft-delete columns | | Standard BaseEntity columns |
+
+**Indexes:** (TenantId, ShopId, Status) · (MemberId)
+
+### sales_line_items
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | uuid PK | |
+| TenantId | uuid NOT NULL | Inherited from BaseEntity |
+| ShopId | uuid NOT NULL | Inherited from BaseEntity |
+| TransactionId | uuid NOT NULL FK → sales_transactions | Cascade delete |
+| ProductId | varchar(100) NOT NULL | SAP product code |
+| ProductName_en | varchar(500) NOT NULL | Product name snapshot at time of sale |
+| ProductName_zht | varchar(500) NOT NULL | Product name snapshot at time of sale |
+| Quantity | int NOT NULL | |
+| UnitPrice | numeric(18,2) NOT NULL | |
+| DiscountAmount | numeric(18,2) NOT NULL | |
+| LineTotal | numeric(18,2) NOT NULL | |
+| + audit/soft-delete columns | | Standard BaseEntity columns |
+
+**Indexes:** (TransactionId)
+
+### return_transactions
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | uuid PK | |
+| TenantId | uuid NOT NULL | |
+| ShopId | uuid NOT NULL | |
+| OriginalTransactionId | uuid NOT NULL FK → sales_transactions | Restrict delete |
+| Reason | text NOT NULL | |
+| RefundAmount | numeric(18,2) NOT NULL | |
+| RefundMethod | varchar(50) NOT NULL | Enum: Cash/CreditCard/QrPay/Voucher |
+| ProcessedAt | timestamptz NULL | Set when IsComplete = true |
+| IsComplete | boolean NOT NULL | Default false |
+| + audit/soft-delete columns | | Standard BaseEntity columns |
+
+**Indexes:** (OriginalTransactionId)
+
+### attendance_records
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | uuid PK | |
+| TenantId | uuid NOT NULL | |
+| ShopId | uuid NOT NULL | |
+| EmployeeId | varchar(256) NOT NULL | SAP employee code |
+| ClockInAt | timestamptz NOT NULL | |
+| ClockOutAt | timestamptz NULL | Null while clocked in |
+| Source | varchar(50) NOT NULL | Enum: Manual/SapSync |
+| Notes | text NULL | |
+| + audit/soft-delete columns | | Standard BaseEntity columns |
+
+**Indexes:** (TenantId, EmployeeId, ClockInAt)
 

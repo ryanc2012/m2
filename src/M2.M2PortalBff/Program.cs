@@ -1,4 +1,5 @@
 using M2.Infrastructure;
+using M2.M2PortalBff.Endpoints;
 using M2.SapConnector;
 using M2.SharedKernel.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -57,6 +58,9 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
+    app.MapApprovalEndpoints();
+    app.MapNotificationEndpoints();
+    app.MapMemberAdminEndpoints();
 
     app.Run();
 }

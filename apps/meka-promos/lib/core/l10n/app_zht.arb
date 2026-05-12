@@ -30,5 +30,74 @@
   "@profile": { "description": "Profile nav item" },
 
   "errorOccurred": "發生錯誤，請重試。",
-  "@errorOccurred": { "description": "Generic error message" }
+  "@errorOccurred": { "description": "Generic error message" },
+
+  "phoneNumber": "電話號碼",
+  "@phoneNumber": { "description": "Phone number field label" },
+
+  "sendOtp": "發送OTP",
+  "@sendOtp": { "description": "Send OTP button" },
+
+  "otpVerification": "OTP驗證",
+  "@otpVerification": { "description": "OTP verification screen title" },
+
+  "otpSentTo": "OTP已發送至 {phone}",
+  "@otpSentTo": {
+    "description": "OTP sent confirmation",
+    "placeholders": { "phone": { "type": "String" } }
+  },
+
+  "resendIn": "{seconds}秒後重發",
+  "@resendIn": {
+    "description": "Resend OTP countdown",
+    "placeholders": { "seconds": { "type": "int" } }
+  },
+
+  "resendOtp": "重新發送OTP",
+  "@resendOtp": { "description": "Resend OTP button" },
+
+  "profileSetup": "設定個人資料",
+  "@profileSetup": { "description": "Profile setup screen title" },
+
+  "firstNameZht": "名字（繁體中文）",
+  "@firstNameZht": { "description": "First name ZHT field label" },
+
+  "lastNameZht": "姓氏（繁體中文）",
+  "@lastNameZht": { "description": "Last name ZHT field label" },
+
+  "firstNameEn": "名字（英文）",
+  "@firstNameEn": { "description": "First name EN field label" },
+
+  "lastNameEn": "姓氏（英文）",
+  "@lastNameEn": { "description": "Last name EN field label" },
+
+  "emailAddress": "電子郵件",
+  "@emailAddress": { "description": "Email address field label" },
+
+  "completeRegistration": "完成登記",
+  "@completeRegistration": { "description": "Complete registration button" },
+
+  "editProfile": "編輯個人資料",
+  "@editProfile": { "description": "Edit profile screen title / button" },
+
+  "save": "儲存",
+  "@save": { "description": "Save button" },
+
+  "cancel": "取消",
+  "@cancel": { "description": "Cancel button" },
+
+  "memberCard": "會員卡",
+  "@memberCard": { "description": "Member card / QR section label" },
+
+  "memberSince": "入會日期",
+  "@memberSince": { "description": "Member since label" },
+
+  "phone": "電話",
+  "@phone": { "description": "Phone label on profile" },
+
+  "registrationTitle": "加入Meka",
+  "@registrationTitle": { "description": "Registration screen title" },
+
+  "registrationSubtitle": "輸入您的電話號碼以開始",
+  "@registrationSubtitle": { "description": "Registration screen subtitle" }
 }

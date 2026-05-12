@@ -279,3 +279,215 @@ Approval chain depth is **configurable (N-level)**. Admin defines the number of 
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
 - Open Questions must be resolved and promoted to Active Decisions before dependent epics enter sprint planning
+
+---
+
+### Edie — 2026-05-12 — Sprint 1 DB Foundation
+
+# Edie — Sprint 1 DB Decisions
+
+**Date:** 2026-05-12  
+**Author:** Edie (Database)  
+**Sprint:** 1 — Database Foundation
+
+---
+
+## Schema Conventions
+
+| Convention | Decision |
+|------------|----------|
+| Default schema | `m2` |
+| PK type | `Guid` (sequential GUIDs — aligns with Coding Standards from ADR-003) |
+| Column naming | PascalCase (EF Core default — aligns with rest of codebase) |
+| Timestamp columns | `timestamptz` (DateTimeOffset) — timezone-aware, required on all entities |
+| Soft delete | `IsDeleted bool DEFAULT false` on all entities — no hard deletes |
+| Migrations history | `m2.__EFMigrationsHistory` (scoped to schema) |
+
+---
+
+## Multi-Tenancy (DB-001 + ADR-012)
+
+- **Approach:** Shared database, `TenantId` (Guid, NOT NULL) column on every table
+- **Multi-store:** `ShopId` (Guid, NOT NULL) first-class on every entity — no nullable shop_id allowed (ADR-013 resolved OQ-04)
+- Both columns are set by the application layer; no DB default — forcing the caller to be explicit
+
+---
+
+## Bilingual Text (ADR-022)
+
+- `BilingualText` is mapped as an EF Core **owned entity** (not a separate table, not JSONB)
+- Column naming pattern: `{propertyName}_en`, `{propertyName}_zht`
+- Both `_en` and `_zht` are `IsRequired()` — storing only one language is a schema violation
+- Extension method `OwnsOneBilingual<TEntity>()` enforces this consistently across all configurations
+
+**Rejected alternatives:**
+- JSONB column: harder to query/index individual languages
+- Separate `LocalizedText` table: join overhead, more complex migrations
+- Single column with delimiter: unacceptable — no type safety
+
+---
+
+## Base Configuration Pattern
+
+All entity configurations extend `BaseEntityConfiguration<TEntity>` which applies shared column mappings. Concrete configurations call `base.Configure(builder)` then add entity-specific mappings (indexes, relationships, query filters for soft delete).
+
+---
+
+## Migration Strategy
+
+- Migrations written manually when EF CLI cannot connect to a live DB (CI/design-time)
+- Timestamp format: `yyyyMMddHHmmss` (e.g., `20260512000000_InitialCreate`)
+- `InitialCreate` migration only creates the `m2` schema — no tables (Sprint 1 scope)
+- Per-module migrations will be added in Sprints 2–4 as domain tables are built
+
+---
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `M2DbContext.cs` | EF Core DbContext; calls `ApplyConfigurationsFromAssembly` |
+| `M2DbContextFactory.cs` | IDesignTimeDbContextFactory for `dotnet ef` CLI tooling |
+| `BaseEntityConfiguration.cs` | Abstract base — TenantId, ShopId, audit, soft-delete columns |
+| `BilingualTextConfiguration.cs` | `OwnsOneBilingual` extension — `{prop}_en` / `{prop}_zht` columns |
+| `DatabaseOptions.cs` | Strongly-typed config for connection string and EF options |
+| `20260512000000_InitialCreate.cs` | Creates `m2` schema; stub for future table migrations |
+| `M2DbContextModelSnapshot.cs` | Empty model snapshot (no tables yet) |
+
+---
+
+### Fenster — 2026-05-12 — Sprint 1 Shells
+
+# Fenster — Sprint 1 Shell Decisions (Inbox)
+
+**Date:** 2026-05-12  
+**Author:** Fenster  
+**Status:** Pending team review
+
+---
+
+## Decision 1: Component Library for m2-portal — MudBlazor
+
+**Chose:** MudBlazor 7.15.0 (upgraded to 3.8.3 of Microsoft.Identity.Web for security)  
+**Rejected:** Radzen Blazor Components
+
+### Rationale
+
+| Factor | MudBlazor | Radzen |
+|--------|-----------|--------|
+| Licence | MIT (fully free) | Free tier has limitations on some components |
+| Component breadth | ~80+ components including DataGrid, Charts | Comparable but some premium-gated |
+| Theming | MudThemeProvider — simple, Material Design 3 aligned | OK but less Material-native |
+| Community & GitHub stars | 8k+ stars, very active | 3k+ stars |
+| Blazor Server support | First-class | First-class |
+| SignalR / real-time readiness | Compatible | Compatible |
+
+MudBlazor aligns with the `initial_request.md` spec ("ASP.NET Blazor Web App with **Material Design** UI") and is MIT-licensed with no component feature gates.
+
+---
+
+## Decision 2: `msal_auth` Package for Flutter MSAL
+
+**Chose:** `msal_auth ^1.0.8`  
+**Rejected:** `flutter_appauth`, `aad_oauth`
+
+### Rationale
+
+`msal_auth` wraps the native MSAL SDK (Microsoft Authentication Library) directly on both Android and iOS, exposing:
+- `SingleAccountPca` — POS shared-device mode (maps 1:1 to ADR-018)
+- `MultipleAccountPca` — standard personal device mode (Promos app)
+
+`flutter_appauth` is an OAuth2 AppAuth wrapper that works with any OIDC provider but does not expose the native MSAL account-switch broker API needed for ADR-018 shared-device mode. `msal_auth` gives us the right abstraction at the right level for our two distinct auth patterns.
+
+---
+
+## Decision 3: Flutter Localisation Toolchain — `flutter gen-l10n`
+
+**Chose:** Flutter built-in `flutter gen-l10n` with ARB files  
+**Rejected:** `easy_localization`, `intl_utils`, custom JSON loader
+
+### Rationale
+
+`flutter gen-l10n` is the Flutter SDK's official localisation pipeline. It generates type-safe `AppLocalizations` classes from `.arb` files at build time. Zero runtime overhead, no third-party dependency, IDE completion support, and aligns with the project's generated-code approach (Riverpod codegen, Mapperly on backend).
+
+ARB files are placed in `lib/core/l10n/` per the sprint task directory layout.
+
+---
+
+## Decision 4: Locale Switching via Riverpod `StateProvider`
+
+**Chose:** `localeProvider` as a Riverpod `StateProvider<Locale?>` passed to `MaterialApp.locale`  
+**Deferred:** Persistence via `shared_preferences`
+
+### Rationale
+
+For Sprint 1, locale switch is in-memory only. A `StateProvider` wired to `MaterialApp.locale` delivers instant live locale switching with no rebuild overhead. Persistence will be added in Sprint 2 when `shared_preferences` is added to the meka-promos dependency tree.
+
+---
+
+## Items Needing Team Input
+
+1. **Azure App Registration IDs** — Placeholder client/tenant IDs used across all three apps. Real IDs needed before any auth flow can be tested. These should be injected via `--dart-define` (Flutter) and `appsettings.{env}.json` (Blazor), not hardcoded.
+2. **`msal_config.json` for Android** — Both Flutter apps need a valid MSAL config JSON in `android/app/src/main/res/raw/msal_config.json` for the Android broker auth flow. Template path referenced in `msal_auth` plugin docs. DevOps/Backend to provide the config once App Registrations exist.
+3. **Entra ID App Registration redirect URIs** — For m2-portal Blazor Server, the redirect URI must be registered: `https://{host}/signin-oidc`. For Flutter apps, the Android/iOS redirect URI format required by MSAL.
+
+---
+
+### Keyser — 2026-05-12 — Sprint 1 Plan
+
+- Sequenced backend platform, approval, notification, member, promotions, sales, attendance, goods receipt, and SAP integration into 4 sprints.
+- Critical path is backend-first: platform → approval → notification → member → promotions → sales → attendance → goods receipt → SAP.
+- Frontend app foundations and UI/UX polish are parallelizable after Sprint 1.
+- All open questions resolved; scope is stable for MVP.
+- SAP and ECR integration risks noted; ECR deferred post-MVP.
+
+---
+
+### McManus — 2026-05-12 — Sprint 1 Platform
+
+# McManus Sprint 1 — Platform Architecture Decisions
+
+**Date:** 2026-05-12T20:02:06+08:00  
+**Author:** McManus  
+**Sprint:** 1 — Platform Foundation & Infrastructure
+
+---
+
+## Decision: SharedKernel enforces both TenantId AND ShopId at BaseEntity level
+
+**Context:** ADR-013 (multi-store from Day 1) and DB-001 (TenantId on all tables).  
+**Decision:** `BaseEntity` implements both `ITenanted` and `IShopScoped`, making both Guid properties non-optional on every entity. There is no "single-store" shortcut available.  
+**Consequence:** Every entity creation requires explicit TenantId + ShopId. Application layer (BFF endpoints) must extract these from the JWT claims before calling domain constructors. Sprint 2 auth middleware must expose a `ITenantContext` / `IShopContext` abstraction.
+
+---
+
+## Decision: BilingualText as a record (value object) with EF owned entity convention
+
+**Context:** ADR-022 requires `{en, zht}` bilingual responses on all API output.  
+**Decision:** `BilingualText` is a C# `record` (immutable, value semantics). EF Core maps it as an owned entity. Column naming convention: `{navigationPropertyName}_en` and `{navigationPropertyName}_zht`. Helper method `OwnsOneBilingual<T>()` on `EntityTypeBuilder<T>` enforces this convention.  
+**Consequence:** Domain entities with displayable names declare `BilingualText Name { get; }` etc. Direct string columns for localised text are forbidden.
+
+---
+
+## Decision: SapConnector project is an anti-corruption layer with no framework dependencies
+
+**Context:** ADR-006 (OData REST primary, NCo RFC fallback), ADR-001 (modular monolith).  
+**Decision:** `M2.SapConnector` references only `M2.SharedKernel` and `Microsoft.Extensions.*`. No EF Core, no BFF-specific packages. It exposes interfaces only; no-op implementations live in the same project behind `internal` visibility. BFFs and Infrastructure consume interfaces via DI.  
+**Consequence:** SAP implementation can be replaced in Epic 9 with zero interface changes. Polly policies will be added in `SapConnectorServiceExtensions` during Sprint 4.
+
+---
+
+## Decision: Outbox deferred to Sprint 4; IOutboxService interface locked Sprint 1
+
+**Context:** ADR-017 (Outbox pattern for SAP writes). Hangfire is not needed until Goods Receipt (Sprint 4).  
+**Decision:** `IOutboxService` interface (`EnqueueAsync<TMessage>` + `ProcessPendingAsync`) is defined and registered as a no-op in Sprint 1. The interface contract is intentionally minimal — message serialisation format TBD when Hangfire is wired.  
+**Consequence:** Any module that needs reliable SAP writes must inject `IOutboxService`, not call SAP directly. This ensures the pattern is enforced from first use.
+
+---
+
+## Open items for Sprint 2
+
+1. `ApiKeyMiddleware` needs SHA-256 hash comparison logic and config-driven key store (BE-REC-001 R4).
+2. `ITenantContext` / `IShopContext` service abstractions needed — BFF endpoints must extract TenantId + ShopId from Entra ID JWT claims.
+3. CORS `AllowAll` policy is a dev placeholder — tighten to allowed origins per environment.
+4. Serilog Azure Application Insights sink not configured — add when ACA deployment pipeline is ready.

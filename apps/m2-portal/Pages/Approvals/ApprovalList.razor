@@ -1,0 +1,97 @@
+@page "/approvals"
+@attribute [Authorize]
+@using MudBlazor
+@using M2Portal.Services
+
+<PageTitle>Approvals — M2 Portal</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Approvals</MudText>
+    <MudSpacer />
+    <MudButton Href="approvals/settings"
+               Variant="Variant.Outlined"
+               StartIcon="@Icons.Material.Filled.Settings"
+               Size="Size.Small">
+        Policy Settings
+    </MudButton>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+else if (_approvals.Count == 0)
+{
+    <MudPaper Class="pa-8" Elevation="0" Outlined="true">
+        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                     Size="Size.Large"
+                     Color="Color.Success" />
+            <MudText Typo="Typo.h6">All caught up!</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                No pending approvals at this time.
+            </MudText>
+        </MudStack>
+    </MudPaper>
+}
+else
+{
+    <MudTable T="ApprovalRequest"
+              Items="_approvals"
+              Hover="true"
+              Dense="true"
+              Elevation="2"
+              Class="rounded-lg">
+        <HeaderContent>
+            <MudTh>Entity Type</MudTh>
+            <MudTh>Entity ID</MudTh>
+            <MudTh>Requested By</MudTh>
+            <MudTh>Requested At</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Entity Type">
+                <MudText Typo="Typo.body2">@context.EntityType</MudText>
+            </MudTd>
+            <MudTd DataLabel="Entity ID">
+                <MudText Typo="Typo.body2">@context.EntityId</MudText>
+            </MudTd>
+            <MudTd DataLabel="Requested By">@context.RequestedBy</MudTd>
+            <MudTd DataLabel="Requested At">
+                @context.RequestedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            </MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string"
+                         Color="@StatusColor(context.Status)"
+                         Size="Size.Small"
+                         Variant="Variant.Filled">
+                    @context.Status
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                <MudButtonGroup Size="Size.Small" Variant="Variant.Text">
+                    <MudButton Color="Color.Success"
+                               StartIcon="@Icons.Material.Filled.CheckCircle"
+                               OnClick="@(() => QuickApproveAsync(context.Id))">
+                        Approve
+                    </MudButton>
+                    <MudButton Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Cancel"
+                               OnClick="@(() => QuickRejectAsync(context.Id))">
+                        Reject
+                    </MudButton>
+                    <MudButton Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.OpenInNew"
+                               Href="@($"approvals/{context.Id}")">
+                        Details
+                    </MudButton>
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/auth/auth_service.dart';
+import '../../features/profile/profile_screen.dart';
+import '../../features/profile/profile_service.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -13,43 +15,57 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedIndex = 0;
 
-  static const _navItems = [
-    NavigationDestination(icon: Icon(Icons.local_offer_outlined), label: 'Promotions'),
-    NavigationDestination(icon: Icon(Icons.qr_code_outlined), label: 'My QR'),
-    NavigationDestination(icon: Icon(Icons.notifications_outlined), label: 'Notifications'),
-    NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
-  ];
-
-  static const _bodies = [
-    _PlaceholderBody(label: 'Promotions'),
-    _PlaceholderBody(label: 'My QR'),
-    _PlaceholderBody(label: 'Notifications'),
-    _PlaceholderBody(label: 'Profile'),
-  ];
-
   Future<void> _signOut() async {
-    await ref.read(authServiceProvider).signOut();
-    ref.invalidate(authStateProvider);
+    ref.read(memberSessionProvider.notifier).state = null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    final navItems = [
+      NavigationDestination(
+        icon: const Icon(Icons.local_offer_outlined),
+        label: l10n.promotions,
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.qr_code_outlined),
+        label: l10n.myQr,
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.notifications_outlined),
+        label: l10n.notifications,
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.person_outline),
+        label: l10n.profile,
+      ),
+    ];
+
+    final bodies = [
+      _PlaceholderBody(label: l10n.promotions),
+      // My QR tab — show profile screen which includes the QR card prominently
+      const ProfileScreen(),
+      _PlaceholderBody(label: l10n.notifications),
+      const ProfileScreen(),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Meka Promos'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: 'Sign Out',
+            tooltip: l10n.signOut,
             onPressed: _signOut,
           ),
         ],
       ),
-      body: _bodies[_selectedIndex],
+      body: bodies[_selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-        destinations: _navItems,
+        destinations: navItems,
       ),
     );
   }
@@ -68,7 +84,7 @@ class _PlaceholderBody extends StatelessWidget {
           Icon(Icons.construction, size: 64, color: Theme.of(context).colorScheme.outline),
           const SizedBox(height: 16),
           Text(
-            '$label — Sprint 2/3',
+            '$label — Sprint 3',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
@@ -78,3 +94,4 @@ class _PlaceholderBody extends StatelessWidget {
     );
   }
 }
+

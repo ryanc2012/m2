@@ -13,8 +13,23 @@
     <MudNavLink Href="attendance" Icon="@Icons.Material.Filled.AccessTime">
         Attendance
     </MudNavLink>
+    <MudNavLink Href="approvals" Icon="@Icons.Material.Filled.HowToVote">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudText>Approvals</MudText>
+            <MudBadge Content="@_pendingCount"
+                      Visible="@(_pendingCount > 0)"
+                      Color="Color.Warning"
+                      Overlap="true"
+                      Class="ml-1">
+            </MudBadge>
+        </MudStack>
+    </MudNavLink>
     <MudDivider Class="my-2" />
     <MudNavLink Href="settings" Icon="@Icons.Material.Filled.Settings">
         Settings
     </MudNavLink>
 </MudNavMenu>
+
+@code {
+    private int _pendingCount = 0;
+}

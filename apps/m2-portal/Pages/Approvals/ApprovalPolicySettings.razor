@@ -1,0 +1,109 @@
+@page "/approvals/settings"
+@attribute [Authorize]
+@using MudBlazor
+@using M2Portal.Services
+
+<PageTitle>Approval Policy Settings — M2 Portal</PageTitle>
+
+<MudBreadcrumbs Items="_breadcrumbs" Class="pa-0 mb-4" />
+
+<MudText Typo="Typo.h4" Class="mb-1">Approval Policy Settings</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    Configure the approval mode and maximum levels per entity type.
+    Supports SAP HCM Hierarchy and Step-by-Step Position modes (ADR-014).
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+else
+{
+    <MudCard Elevation="2">
+        <MudCardContent>
+            <MudTable T="ApprovalPolicyConfig"
+                      Items="_policies"
+                      Dense="true"
+                      Hover="true"
+                      Elevation="0">
+                <HeaderContent>
+                    <MudTh>Entity Type</MudTh>
+                    <MudTh>Escalation Mode</MudTh>
+                    <MudTh>Max Levels</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    @if (_editingEntityType == context.EntityType)
+                    {
+                        <MudTd>
+                            <MudText Typo="Typo.body2">@context.EntityType</MudText>
+                        </MudTd>
+                        <MudTd>
+                            <MudSelect T="EscalationMode"
+                                       @bind-Value="_editMode"
+                                       Dense="true"
+                                       Variant="Variant.Outlined">
+                                <MudSelectItem Value="EscalationMode.SapHcmHierarchy">
+                                    SAP HCM Hierarchy
+                                </MudSelectItem>
+                                <MudSelectItem Value="EscalationMode.StepByStepPosition">
+                                    Step-by-step Position
+                                </MudSelectItem>
+                            </MudSelect>
+                        </MudTd>
+                        <MudTd>
+                            <MudNumericField T="int"
+                                             @bind-Value="_editMaxLevels"
+                                             Min="1"
+                                             Max="10"
+                                             Variant="Variant.Outlined"
+                                             Style="width: 80px" />
+                        </MudTd>
+                        <MudTd>
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Text">
+                                <MudButton Color="Color.Success"
+                                           OnClick="@(() => SavePolicyAsync(context.EntityType))">
+                                    Save
+                                </MudButton>
+                                <MudButton Color="Color.Default"
+                                           OnClick="CancelEdit">
+                                    Cancel
+                                </MudButton>
+                            </MudButtonGroup>
+                        </MudTd>
+                    }
+                    else
+                    {
+                        <MudTd>@context.EntityType</MudTd>
+                        <MudTd>
+                            <MudChip T="string"
+                                     Size="Size.Small"
+                                     Variant="Variant.Outlined"
+                                     Color="Color.Primary">
+                                @ModeLabel(context.Mode)
+                            </MudChip>
+                        </MudTd>
+                        <MudTd>@context.MaxLevels</MudTd>
+                        <MudTd>
+                            <MudButton Size="Size.Small"
+                                       Variant="Variant.Text"
+                                       StartIcon="@Icons.Material.Filled.Edit"
+                                       OnClick="@(() => BeginEdit(context))">
+                                Edit
+                            </MudButton>
+                        </MudTd>
+                    }
+                </RowTemplate>
+            </MudTable>
+        </MudCardContent>
+    </MudCard>
+
+    @if (_saving)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mt-2" />
+    }
+}

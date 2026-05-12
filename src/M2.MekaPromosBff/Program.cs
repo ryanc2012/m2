@@ -1,4 +1,5 @@
 using M2.Infrastructure;
+using M2.MekaPromosBff.Endpoints;
 using M2.SapConnector;
 using M2.SharedKernel.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -57,6 +58,7 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
+    app.MapMemberEndpoints();
 
     app.Run();
 }

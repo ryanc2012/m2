@@ -1,0 +1,152 @@
+@page "/approvals/{Id:guid}"
+@attribute [Authorize]
+@using MudBlazor
+@using M2Portal.Services
+
+<PageTitle>Approval Detail — M2 Portal</PageTitle>
+
+<MudBreadcrumbs Items="_breadcrumbs" Class="pa-0 mb-4" />
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else if (_detail is not null)
+{
+    @* Status banner — prominent when action is required (ADR history: approval state prominence) *@
+    @if (_detail.Status == ApprovalStatus.Pending)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-4" Icon="@Icons.Material.Filled.PendingActions">
+            <strong>Your action is required.</strong> This approval request is awaiting your decision.
+        </MudAlert>
+    }
+
+    <MudGrid>
+        @* Left — details + history *@
+        <MudItem xs="12" md="7">
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Request Details</MudText>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        <MudChip T="string"
+                                 Color="@StatusColor(_detail.Status)"
+                                 Variant="Variant.Filled"
+                                 Size="Size.Small">
+                            @_detail.Status
+                        </MudChip>
+                    </CardHeaderActions>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudSimpleTable Dense="true" Hover="false" Elevation="0">
+                        <tbody>
+                            <tr><td><strong>Entity Type</strong></td><td>@_detail.EntityType</td></tr>
+                            <tr><td><strong>Entity ID</strong></td><td>@_detail.EntityId</td></tr>
+                            <tr><td><strong>Requested By</strong></td><td>@_detail.RequestedBy</td></tr>
+                            <tr><td><strong>Requested At</strong></td>
+                                <td>@_detail.RequestedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                            </tr>
+                            <tr><td><strong>Current Step</strong></td><td>@(_detail.CurrentStep + 1)</td></tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudCardContent>
+            </MudCard>
+
+            @* Step history timeline *@
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Approval History</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_detail.History.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            No steps recorded yet.
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudTimeline TimelinePosition="TimelinePosition.Start">
+                            @foreach (var step in _detail.History)
+                            {
+                                <MudTimelineItem Color="@StepColor(step.Status)"
+                                                 Variant="Variant.Filled"
+                                                 Size="Size.Small">
+                                    <ItemContent>
+                                        <MudText Typo="Typo.subtitle2">
+                                            Step @(step.StepIndex + 1) — @step.Actor
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                            @step.Status
+                                            @if (step.ActionAt.HasValue)
+                                            {
+                                                <span> · @step.ActionAt.Value.ToLocalTime().ToString("MMM d, HH:mm")</span>
+                                            }
+                                        </MudText>
+                                        @if (!string.IsNullOrWhiteSpace(step.Comment))
+                                        {
+                                            <MudText Typo="Typo.body2" Class="mt-1">
+                                                "@step.Comment"
+                                            </MudText>
+                                        }
+                                    </ItemContent>
+                                </MudTimelineItem>
+                            }
+                        </MudTimeline>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        @* Right — action panel *@
+        <MudItem xs="12" md="5">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Take Action</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudTextField @bind-Value="_comment"
+                                  Label="Comment (optional)"
+                                  Lines="4"
+                                  Variant="Variant.Outlined"
+                                  Class="mb-4" />
+                </MudCardContent>
+                <MudCardActions Class="px-4 pb-4 flex-column gap-2">
+                    <MudButton FullWidth="true"
+                               Variant="Variant.Filled"
+                               Color="Color.Success"
+                               StartIcon="@Icons.Material.Filled.CheckCircle"
+                               OnClick="ApproveAsync"
+                               Disabled="_acting || _detail.Status != ApprovalStatus.Pending">
+                        Approve
+                    </MudButton>
+                    <MudButton FullWidth="true"
+                               Variant="Variant.Filled"
+                               Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Cancel"
+                               OnClick="RejectAsync"
+                               Disabled="_acting || _detail.Status != ApprovalStatus.Pending">
+                        Reject
+                    </MudButton>
+                    <MudButton FullWidth="true"
+                               Variant="Variant.Outlined"
+                               Color="Color.Info"
+                               StartIcon="@Icons.Material.Filled.ArrowUpward"
+                               OnClick="EscalateAsync"
+                               Disabled="_acting || _detail.Status != ApprovalStatus.Pending">
+                        Escalate
+                    </MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}

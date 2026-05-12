@@ -25,6 +25,13 @@ builder.Services.AddServerSideBlazor()
 // MudBlazor component library
 builder.Services.AddMudServices();
 
+// Approval service — calls M2PortalBff (base URL configured in appsettings)
+builder.Services.AddHttpClient<M2Portal.Services.ApprovalService>(client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
+});
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

@@ -1,0 +1,34 @@
+{
+  "@@locale": "zh",
+  "@@context": "Meka Promos — Traditional Chinese (ZHT). Template locale per ADR-022.",
+
+  "appTitle": "Meka 優惠",
+  "@appTitle": { "description": "Application title" },
+
+  "signIn": "登入",
+  "@signIn": { "description": "Sign-in button label" },
+
+  "signOut": "登出",
+  "@signOut": { "description": "Sign-out button" },
+
+  "language": "語言",
+  "@language": { "description": "Language label" },
+
+  "home": "首頁",
+  "@home": { "description": "Home nav item" },
+
+  "promotions": "優惠",
+  "@promotions": { "description": "Promotions nav item" },
+
+  "myQr": "我的QR碼",
+  "@myQr": { "description": "My QR nav item" },
+
+  "notifications": "通知",
+  "@notifications": { "description": "Notifications nav item" },
+
+  "profile": "個人資料",
+  "@profile": { "description": "Profile nav item" },
+
+  "errorOccurred": "發生錯誤，請重試。",
+  "@errorOccurred": { "description": "Generic error message" }
+}

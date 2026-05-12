@@ -10,6 +10,30 @@
 
 <!-- Append learnings below -->
 
+### 2026-05-12 — Sprint 1: Backend Platform Foundation
+
+**What was built:**
+- Full `.NET 9` solution (`src/M2.sln`) with 9 projects: SharedKernel, Domain, Infrastructure, SapConnector, 3× BFF (MekaPOS, MekaPromos, M2Portal), and 2× test (Unit, Integration).
+- SharedKernel: `ITenanted`, `IShopScoped`, `BaseEntity` (multi-tenancy + multi-store + soft-delete), `Result<T>`, `AppException`, `BilingualText` (EN/ZHT), `ApiKeyMiddleware` stub.
+- All three BFFs: Minimal API bootstrap with Entra ID (`Microsoft.Identity.Web`), Serilog structured logging, Swashbuckle (dev only), CORS placeholder, `/health` endpoint.
+- SapConnector: `ISapODataClient` + `ISapNcoClient` interfaces, `SapConnectorOptions`, no-op implementations, `SapConnectorServiceExtensions`.
+- Infrastructure: `M2DbContext` (EF Core 9 + Npgsql), `IOutboxService` + no-op, `BaseEntityConfiguration` (EF base for all entities), `BilingualTextConfiguration` (owned entity mapping), initial migration stub.
+- `dotnet build`: **0 errors, 0 warnings**.
+
+**Key implementation decisions:**
+- `BaseEntity` enforces both `TenantId` AND `ShopId` (not optional) — multi-store is baked in from byte zero.
+- `BilingualText` is a `record` (value semantics) mapped as EF owned entity with `_en` / `_zht` column suffix convention.
+- `ApiKeyMiddleware` is a pass-through stub — hash comparison logic deferred to Sprint 2.
+- All SAP no-op implementations are `internal sealed` — consumers must depend on the interface.
+- Outbox no-op returns `Task.CompletedTask` — Hangfire wiring deferred to Sprint 4 (Goods Receipt).
+
+**Gotcha — pre-existing Infrastructure files:**
+The repo already had `M2.Infrastructure` source files committed (`BaseEntityConfiguration.cs`, `BilingualTextConfiguration.cs`, Migrations, etc.) with correct `M2.SharedKernel` namespace. These were compatible with the new SharedKernel types and compiled cleanly. The initial build failed due to stale incremental build cache — a clean `--no-incremental` build succeeded with 0 errors.
+
+**gitignore gap fixed:** Added standard `.NET` `bin/`, `obj/` exclusions to `.gitignore`. Previously these were tracked, causing noise in commits.
+
+
+
 ### 2026-05-12 — Backend Backlog Authoring
 
 **Domain Insights:**

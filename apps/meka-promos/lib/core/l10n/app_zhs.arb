@@ -1,0 +1,34 @@
+{
+  "@@locale": "zh_Hans",
+  "@@context": "Meka Promos — Simplified Chinese (ZHS). ADR-022: ZHS needs separate translation layer.",
+
+  "appTitle": "Meka 优惠",
+  "@appTitle": { "description": "Application title" },
+
+  "signIn": "登录",
+  "@signIn": { "description": "Sign-in button label" },
+
+  "signOut": "登出",
+  "@signOut": { "description": "Sign-out button" },
+
+  "language": "语言",
+  "@language": { "description": "Language label" },
+
+  "home": "首页",
+  "@home": { "description": "Home nav item" },
+
+  "promotions": "优惠",
+  "@promotions": { "description": "Promotions nav item" },
+
+  "myQr": "我的二维码",
+  "@myQr": { "description": "My QR nav item" },
+
+  "notifications": "通知",
+  "@notifications": { "description": "Notifications nav item" },
+
+  "profile": "个人资料",
+  "@profile": { "description": "Profile nav item" },
+
+  "errorOccurred": "发生错误，请重试。",
+  "@errorOccurred": { "description": "Generic error message" }
+}

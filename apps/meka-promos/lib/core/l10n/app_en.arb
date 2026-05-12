@@ -1,0 +1,34 @@
+{
+  "@@locale": "en",
+  "@@context": "Meka Promos — English (EN). ADR-022: member app supports ZHT/ZHS/EN.",
+
+  "appTitle": "Meka Promos",
+  "@appTitle": { "description": "Application title" },
+
+  "signIn": "Sign In",
+  "@signIn": { "description": "Sign-in button label" },
+
+  "signOut": "Sign Out",
+  "@signOut": { "description": "Sign-out button" },
+
+  "language": "Language",
+  "@language": { "description": "Language label" },
+
+  "home": "Home",
+  "@home": { "description": "Home nav item" },
+
+  "promotions": "Promotions",
+  "@promotions": { "description": "Promotions nav item" },
+
+  "myQr": "My QR",
+  "@myQr": { "description": "My QR nav item" },
+
+  "notifications": "Notifications",
+  "@notifications": { "description": "Notifications nav item" },
+
+  "profile": "Profile",
+  "@profile": { "description": "Profile nav item" },
+
+  "errorOccurred": "An error occurred. Please try again.",
+  "@errorOccurred": { "description": "Generic error message" }
+}

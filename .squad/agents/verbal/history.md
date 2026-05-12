@@ -9,6 +9,7 @@
 ## Learnings
 
 <!-- Append learnings below -->
+2026-05-12 — Sprint 3: 23 new tests (Promotions, Sales, Attendance, ECR scope guard). 40/40 passing. Test style: entity-direct + mock-contract. ADR/test number mapping noted.
 
 2026-05-12 — Sprint 2: 17 unit tests, integration harness, 3 projects delivered. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.
 - 2026-05-12: Test strategy established. Key decisions: test pyramid (70/20/10), tool choices (xUnit, flutter_test, bUnit, Playwright, Pact, k6, Restler, OWASP ZAP). Risks: SAP integration testability, auth complexity, device fragmentation. Recommend: automate security/perf, mock SAP, enforce contract tests.

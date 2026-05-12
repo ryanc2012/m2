@@ -9,6 +9,7 @@
 ## Learnings
 
 <!-- Append learnings below -->
+2026-05-12 — Sprint 3: POS core flows (cart, payment, receipt, returns, member lookup, attendance), member app promotion/coupon UI, portal promotion management. 5-tab POS nav, inline member QR, DTO naming, camera placeholder. All builds clean.
 
 ### 2026-05-12 — Sprint 2: Flutter member registration/profile/QR, Blazor approval UI delivered. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.
 

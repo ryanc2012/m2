@@ -282,6 +282,85 @@ Approval chain depth is **configurable (N-level)**. Admin defines the number of 
 
 ---
 
+# Decision: Sprint 3 Schema — Promotions, Sales, Attendance
+
+**Date:** 2026-05-12T22:22:36+08:00
+**Author:** Edie (Database)
+**Status:** Delivered
+**Sprint:** 3
+
+---
+
+## Summary
+
+Delivered EF Core entity configurations, migration `20260512020000_Sprint3_PromotionsSalesAttendance`, updated model snapshot, and `DATA-DESIGN.md` Sprint 3 section for Promotions, Sales, and Attendance domains. 7 new tables created.
+
+---
+
+## Files Created / Modified
+
+| File | Action |
+|------|--------|
+| `src/M2.Infrastructure/Persistence/Configurations/PromotionConfiguration.cs` | Created |
+| `src/M2.Infrastructure/Persistence/Configurations/CouponConfiguration.cs` | Created |
+| `src/M2.Infrastructure/Persistence/Configurations/PromotionProductConfiguration.cs` | Created |
+| `src/M2.Infrastructure/Persistence/Configurations/SalesTransactionConfiguration.cs` | Created |
+| `src/M2.Infrastructure/Persistence/Configurations/SalesLineItemConfiguration.cs` | Created |
+| `src/M2.Infrastructure/Persistence/Configurations/ReturnTransactionConfiguration.cs` | Created |
+| `src/M2.Infrastructure/Persistence/Configurations/AttendanceRecordConfiguration.cs` | Created |
+| `src/M2.Infrastructure/M2DbContext.cs` | Updated — 7 new DbSet properties added |
+| `src/M2.Infrastructure/Migrations/20260512020000_Sprint3_PromotionsSalesAttendance.cs` | Created |
+| `src/M2.Infrastructure/Migrations/20260512020000_Sprint3_PromotionsSalesAttendance.Designer.cs` | Created |
+| `src/M2.Infrastructure/Migrations/M2DbContextModelSnapshot.cs` | Updated — Sprint 3 entities added |
+| `docs/data/DATA-DESIGN.md` | Updated — Sprint 3 tables section added |
+
+---
+
+## Key Decisions
+
+### D1 — Followed domain model over spec
+McManus had pre-authored domain entities with richer models than the task spec. All configurations were written to match the actual domain code, not the spec. Deviations are documented below.
+
+### D2 — Enums stored as varchar(50) strings
+`PromotionType`, `PromotionStatus`, `PaymentMethod`, `SalesStatus`, `AttendanceSource` all stored as strings via `HasConversion<string>()`. Consistent with Sprint 2 precedent (ADR-003).
+
+### D3 — SalesLineItem extends BaseEntity
+Spec implied a lightweight entity. McManus's domain has `SalesLineItem : BaseEntity` — full audit trail preserved. This adds TenantId/ShopId to line items, enabling direct queries without joining to the parent transaction.
+
+### D4 — SalesLineItem uses plain bilingual strings, not BilingualText
+The domain uses `ProductNameEn`/`ProductNameZht` string properties (not a `BilingualText` owned type). Mapped to columns `ProductName_en` / `ProductName_zht` to match convention. This is a name snapshot at point-of-sale, not a live bilingual entity.
+
+### D5 — ReturnTransaction has IsComplete + nullable ProcessedAt
+Spec described only `processed_at`. McManus's domain adds `IsComplete bool` (default false) and makes `ProcessedAt` nullable — set only on completion. Both mapped in the configuration and migration.
+
+### D6 — PromotionProduct has DiscountValue
+Spec had only `(promotion_id, product_id)` composite PK. Domain adds `DiscountValue decimal` for per-product discount override. Included in configuration, migration, and snapshot.
+
+### D7 — Cross-module references stored without FK constraints (ADR-001)
+`coupons.MemberId`, `sales_transactions.MemberId`, and `promotions.ApprovalRequestId` are IDs referencing other bounded contexts. No DB-level FK constraints created — consistent with ADR-001 (no cross-module navigation). Data integrity enforced at application layer.
+
+### D8 — ReturnTransaction FK uses RESTRICT
+`return_transactions.OriginalTransactionId → sales_transactions` uses `OnDelete(Restrict)` to prevent accidental deletion of source transactions with outstanding returns. Same rationale as `notification_logs → notification_templates` in Sprint 2.
+
+### D9 — Down() order
+Strict reverse FK dependency order: `return_transactions` → `sales_line_items` → `promotion_products` → `coupons` → `sales_transactions` → `promotions` → `attendance_records`.
+
+---
+
+## Build Verification
+
+`dotnet build src/M2.Infrastructure/M2.Infrastructure.csproj` — **0 errors, 0 warnings**.
+
+---
+
+## Open Questions / Recommendations
+
+- **OQ-SPRINT3-01:** `SalesTransaction` doesn't have a navigation property to `ReturnTransaction` in the domain. `ReturnTransactionConfiguration` uses `WithMany()` (no collection on principal). If backend needs to eager-load returns from a transaction, a navigation property should be added to `SalesTransaction`.
+- **OQ-SPRINT3-02:** Recommend `dotnet ef migrations add` regeneration once McManus finalises all domain factories — the hand-written snapshot may drift if any property ordering differs from EF Core's auto-generation.
+- **OQ-SPRINT3-03:** `promotions.ApprovalRequestId` stores the cross-module reference but no FK constraint. If promotions are deleted while an approval is in-flight, the approval will have an orphan `EntityId`. Workflow guard should be added at application layer.
+
+---
+
 ### Edie — 2026-05-12 — Sprint 1 DB Foundation
 
 # Edie — Sprint 1 DB Decisions

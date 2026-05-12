@@ -206,3 +206,19 @@ CREATE TABLE GoodsReceipt (
 - **Promotion:** Dev → Test → UAT → Prod, with migration scripts versioned and peer-reviewed.
 
 ---
+
+## Sprint 1 Foundation
+
+### Schema
+- Default schema: `m2`
+- All tables use `TenantId` (Guid) + `ShopId` (Guid) as mandatory discriminators
+- Soft delete via `IsDeleted` (bool)
+- Bilingual text stored as `{property}_en` / `{property}_zht` column pairs
+
+### Pending tables (Sprint 2+)
+- Members (Sprint 2)
+- Promotions (Sprint 3)
+- Sales (Sprint 3)
+- Attendance (Sprint 3)
+- GoodsReceipts (Sprint 4)
+

@@ -1,0 +1,6 @@
+C:\Users\ryanc.dev\source\repos\pos\src\M2.Infrastructure\obj\Release\net9.0\M2.Infrastructure.csproj.AssemblyReference.cache
+C:\Users\ryanc.dev\source\repos\pos\src\M2.Infrastructure\obj\Release\net9.0\M2.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\ryanc.dev\source\repos\pos\src\M2.Infrastructure\obj\Release\net9.0\M2.Infrastructure.AssemblyInfoInputs.cache
+C:\Users\ryanc.dev\source\repos\pos\src\M2.Infrastructure\obj\Release\net9.0\M2.Infrastructure.AssemblyInfo.cs
+C:\Users\ryanc.dev\source\repos\pos\src\M2.Infrastructure\obj\Release\net9.0\M2.Infrastructure.csproj.CoreCompileInputs.cache
+C:\Users\ryanc.dev\source\repos\pos\src\M2.Infrastructure\obj\Release\net9.0\M2.Infrastructure.sourcelink.json

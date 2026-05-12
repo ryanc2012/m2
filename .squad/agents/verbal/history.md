@@ -9,6 +9,7 @@
 ## Learnings
 
 <!-- Append learnings below -->
+2026-05-12 — Sprint 4: 15 new tests, 55/55 passing, domain invariants, NotificationLog.MarkAsRead(), reporting value objects. Project feature-complete for UAT.
 2026-05-12 — Sprint 3: 23 new tests (Promotions, Sales, Attendance, ECR scope guard). 40/40 passing. Test style: entity-direct + mock-contract. ADR/test number mapping noted.
 
 2026-05-12 — Sprint 2: 17 unit tests, integration harness, 3 projects delivered. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.

@@ -1,5 +1,39 @@
 # Squad Decisions
 
+## Sprint 4 Decisions (2026-05-12)
+
+### Edie — Sprint 4 Schema Decisions
+- GoodsReceiptLineItem uses Cascade (not Restrict) for FK to GoodsReceiptNote
+- sap_outbox_entries has no cross-module FK constraints
+- sap_outbox_entries index strategy: (TenantId, Status) and (Status, CreatedAt)
+- BilingualText on GoodsReceiptLineItem uses OwnsOne (not flat columns)
+
+### Fenster — Sprint 4 Decisions
+- PDF font for ZHT receipt printing: PdfGoogleFonts.notoSansTCRegular()/notoSansTCBold()
+- lib/services/ and lib/screens/ top-level dirs for cross-cutting services/screens
+- Goods Receipt mock data fallback: try/catch with in-process mock data
+- Dashboard at /dashboard route, Index.razor redirects
+- Notification read state is optimistically updated client-side
+
+### McManus — Sprint 4 Decisions
+- GoodsReceiptStatus enum: Pending/Confirmed/Discrepancy
+- SapODataClient reads Sap:ODataBaseUrl from IConfiguration
+- SapNcoClient: NotSupportedException stub for interface
+- NoOpSapODataClient retained for test use
+- INotificationHistoryService: MemberId as string
+- Reporting AttendanceSummary: separate from Attendance domain
+- GoodsReceiptService PostToSapAsync: outbox deferred
+
+### Verbal — Sprint 4 Test Decisions
+- GoodsReceipt domain invariant tests: direct entity testing
+- SAP OData Client: MockHttpMessageHandler pattern
+- ISapNcoClient interface extended with GetProductsAsync
+- NotificationLog.IsRead domain property for read status
+- Reporting tests use SalesSummary/AttendanceSummary from M2.Domain.Reporting
+
+---
+
+
 ## Active Decisions
 
 ### ADR-001: Architecture Style — Modular Monolith
@@ -112,6 +146,42 @@ Test pyramid: 70% unit / 20% integration / 10% e2e. Standard tools: xUnit, flutt
 ---
 
 ## Open Questions (Pending Decision)
+
+---
+
+# Sprint 4 Decisions (2026-05-12)
+
+## Edie — Sprint 4 Schema Decisions
+- GoodsReceiptLineItem uses Cascade (not Restrict) for FK to GoodsReceiptNote
+- sap_outbox_entries has no cross-module FK constraints
+- sap_outbox_entries index strategy: (TenantId, Status) and (Status, CreatedAt)
+- BilingualText on GoodsReceiptLineItem uses OwnsOne (not flat columns)
+
+## Fenster — Sprint 4 Decisions
+- PDF font for ZHT receipt printing: PdfGoogleFonts.notoSansTCRegular()/notoSansTCBold()
+- lib/services/ and lib/screens/ top-level dirs for cross-cutting services/screens
+- Goods Receipt mock data fallback: try/catch with in-process mock data
+- Dashboard at /dashboard route, Index.razor redirects
+- Notification read state is optimistically updated client-side
+
+## McManus — Sprint 4 Decisions
+- GoodsReceiptStatus enum: Pending/Confirmed/Discrepancy
+- SapODataClient reads Sap:ODataBaseUrl from IConfiguration
+- SapNcoClient: NotSupportedException stub for interface
+- NoOpSapODataClient retained for test use
+- INotificationHistoryService: MemberId as string
+- Reporting AttendanceSummary: separate from Attendance domain
+- GoodsReceiptService PostToSapAsync: outbox deferred
+
+## Verbal — Sprint 4 Test Decisions
+- GoodsReceipt domain invariant tests: direct entity testing
+- SAP OData Client: MockHttpMessageHandler pattern
+- ISapNcoClient interface extended with GetProductsAsync
+- NotificationLog.IsRead domain property for read status
+- Reporting tests use SalesSummary/AttendanceSummary from M2.Domain.Reporting
+
+---
+
 > All questions resolved as of 2026-05-12. See ADR-009 onwards.
 
 

@@ -9,6 +9,7 @@
 ## Learnings
 
 <!-- Append learnings below -->
+2026-05-12 — Sprint 4: Goods Receipt API, SAP Integration Layer (real SapODataClient), Reporting & Dashboard API, Notification History. Project feature-complete for UAT.
 2026-05-12 — Sprint 3: Promotions, Sales, Attendance APIs delivered. Domain entities/interfaces for all three, in-memory stubs, BFF endpoints. Coupon pre-issuance, stackable flag, refund method enforcement, ECR deferred. dotnet build clean.
 
 ### 2026-05-12 — Sprint 2: Approval engine, Notification service, Member API delivered. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.

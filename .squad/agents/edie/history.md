@@ -9,6 +9,7 @@
 ## Learnings
 
 <!-- Append learnings below -->
+2026-05-12 — Sprint 4: GoodsReceiptNote, GoodsReceiptLineItem, SapOutboxEntry EF configs, migration, model snapshot, DATA-DESIGN.md updated. Project feature-complete for UAT.
 2026-05-12 — Sprint 3: Delivered EF Core configs, migration 20260512020000_Sprint3_PromotionsSalesAttendance, updated DbContext and DATA-DESIGN.md for Promotions, Sales, Attendance. Domain model followed over spec; enums as strings; cross-module FKs no DB constraint. Build clean.
 
 2026-05-12 — Sprint 2: 8 EF Core entity configs, migration 20260512010000, DbContext, DATA-DESIGN.md updated. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.

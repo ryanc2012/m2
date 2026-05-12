@@ -63,7 +63,48 @@ The repo already had `M2.Infrastructure` source files committed (`BaseEntityConf
 9. Offline POS support required?
 10. Return refund method: original payment only or store credit also supported?
 
-### 2026-05-12 — Cross-Agent Context (from Initial Planning Session)
+### 2026-05-12 — Sprint 2: Backend APIs
+
+**What was built:**
+
+**Module 1 — Approval Workflow Engine (`M2.Domain/Approvals/`, `M2.Infrastructure/Approvals/`)**
+- `ApprovalRequest`, `ApprovalStep`, `ApprovalPolicy` entities extending `BaseEntity` (multi-tenant, multi-store).
+- `IApprovalService` (CreateRequest, ApproveStep, RejectStep, GetRequest, GetPendingForApprover).
+- `IApprovalPolicyService` (GetPolicy, SetPolicy).
+- Stub `ApprovalService`: in-memory dict, respects `ApprovalPolicy.Mode` (SapHcmHierarchy vs StepByStepPosition, ADR-014) and `MaxLevels` (N-level chain, ADR-021).
+- `M2PortalBff` endpoints: `POST/GET /approvals/requests`, `GET /approvals/pending`, `POST /approvals/requests/{id}/approve|reject`.
+
+**Module 2 — Notification Service (`M2.Domain/Notifications/`, `M2.Infrastructure/Notifications/`)**
+- `NotificationTemplate`, `DeviceRegistration`, `NotificationLog` entities.
+- `INotificationService` (SendPush, RegisterDevice, UnregisterDevice).
+- `ISmsGateway` (ADR-010): no-op stub, provider-swappable without code changes.
+- Stub `NotificationService`: logs dispatch intent to Serilog (no real FCM/APNs yet).
+- `M2PortalBff` endpoints: `POST /notifications/devices`, `DELETE /notifications/devices/{id}`, `POST /notifications/send`.
+
+**Module 3 — Member Management API (`M2.Domain/Members/`, `M2.Infrastructure/Members/`)**
+- `Member` entity with `BilingualText FirstName/LastName` (ADR-022), `QrCode` (opaque ref, ADR-019), `MembershipTier` enum.
+- `OtpRequest` POCO (not BaseEntity — transient verification record, 5-min TTL).
+- `IMemberService` (Register, GetById, GetByQrCode, UpdateProfile, Deactivate).
+- `IOtpService` (GenerateAsync, ValidateAsync).
+- `M2PortalBff`: GET/PUT member admin endpoints.
+- `MekaPromosBff`: full consumer endpoints (register, qr lookup, otp generate/validate, update).
+
+**Infra / Config:**
+- `M2DbContext`: all Sprint 2 DbSets added.
+- `InfrastructureServiceExtensions`: all Sprint 2 services registered.
+- Pre-existing EF configurations fixed: nav property refs updated, enum-to-string conversions added.
+- `dotnet build`: **0 errors, 0 warnings**.
+
+**Key implementation decisions:**
+- Used `BilingualText` value object (established in Sprint 1) for all bilingual name/text fields — overrides task's flat En/Zht fields spec.
+- `OtpRequest` intentionally does NOT extend `BaseEntity` — it's a transient verification code record with no tenancy/audit lifecycle.
+- All stub services use static in-memory Dictionaries — EF DbContext wiring deferred to Sprint 3 migrations.
+- `ApprovalService.RejectStepAsync` resets to `ApprovalStatus.Rejected` regardless of step level (policy check only on approve path).
+
+**Gotcha — pre-existing domain stub files:**
+The repo already had minimal entity stubs (`Member.cs`, `OtpRequest.cs`, `NotificationTemplate.cs`, `DeviceRegistration.cs`, `NotificationLog.cs`) committed from a prior session, plus full EF configuration files for all Sprint 2 entities. These configs referenced old navigation properties (`o.Member`, `s.ApprovalRequest`, `t.Logs`) that conflicted with updated entity design. Fixed all three configs (`OtpRequestConfiguration`, `ApprovalRequestConfiguration`, `NotificationLogConfiguration`) to use no-navigation FK mapping.
+
+
 
 **From Keyser (Architecture) — resolves open questions:**
 - **Q3 SAP connectivity answered:** ADR-006 confirms OData REST primary, NCo RFC/BAPI fallback. This unblocks Epic 9 design. SAP landscape credentials (DEV/QAS/PRD hostnames, client numbers) still needed from client.

@@ -10,6 +10,8 @@
 
 <!-- Append learnings below -->
 
+### 2026-05-12 — Sprint 2: Flutter member registration/profile/QR, Blazor approval UI delivered. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.
+
 ### 2026-05-12 — Sprint 1: App Shells Created (POS, Promos, Portal)
 
 #### What Was Built
@@ -36,104 +38,3 @@
 
 
 ### 2026-05-12 — Frontend Backlog: UX Patterns, Architecture, Open Questions
-
-#### UX Patterns Identified
-
-- **QR Code Screen:** Screen brightness must be programmatically boosted when the QR screen is active (and restored on leave). This is a common POS consumer app pattern, easily handled via Flutter's `SystemChrome.setEnabledSystemUIMode` + a brightness plugin.
-- **Shared Device (POS App):** The POS runs on a shared tablet. Two critical UX decisions flow from this: (1) Auto-lock on inactivity with PIN unlock to restore session, (2) Full Entra ID re-auth for "Switch Staff" to ensure no bleed-over of session state between users.
-- **OTP Flow:** Auto-advance focus between OTP digit cells, auto-submit on final digit, and SMS OTP auto-detection (Android SMS Retriever API / iOS AutoFill) are table-stakes for a Malaysian consumer app. Without these, registration friction is too high.
-- **Skeleton Loaders:** Every async data surface must use skeleton/shimmer placeholders. Blank screens or spinners alone are not acceptable. This applies uniformly to all three apps.
-- **Error States:** All three apps must surface human-readable error messages with retry CTAs. Raw HTTP codes must never appear in UI.
-- **Offline degradation (Promotion App):** Cache promotions locally (Hive or SharedPreferences). Serve stale data with a "Last updated" badge when offline. QR code must work offline (locally stored token until expiry).
-- **Cart persistence (POS App):** Cart state must be written to local storage on every mutation. A network failure mid-transaction must never lose the cart.
-- **Approval state prominence (M2 Portal):** Status badges alone are insufficient for approval screens. Use full-width status banners at the top of detail pages when the viewer's action is required.
-- **Bottom nav (Promotion App):** 4-tab bottom nav — Promotions, My QR, Notifications, Profile. Keep it simple; no drawer needed for this consumer app.
-- **Tablet-first POS layout:** Split-panel landscape: product search/scan on left, cart on right. All tap targets ≥ 48×48dp. Avoid cramped portrait-only designs.
-
-#### Component Architecture Insights
-
-- **Shared widget conventions:** All three apps need an `EmptyStateWidget` and `ErrorStateWidget` pattern. In Flutter apps, these should be widget classes accepting illustration, title, body, and optional CTA callback. In Blazor, a reusable `<EmptyState>` and `<ErrorState>` render fragment component.
-- **Discount badge / type config:** The discount type configuration in the M2 Portal create/edit form is a dynamic panel that swaps fields based on the selected discount type (Percentage / Fixed / Buy-X-Get-Y). Implement as a single `DiscountValueConfig` component that renders conditionally — avoids duplication and keeps validation logic in one place.
-- **Approval timeline:** The `ApprovalHistoryTimeline` component is a standalone read-only component used on the formula detail page. It should accept a flat list of `ApprovalEvent` objects and render a styled vertical timeline with icons per event type (submitted, approved, rejected, resubmitted).
-- **Barcode scanner widget:** Both App 1 (member QR scan in POS) and App 2 use camera-based barcode scanning. Extract `BarcodeScanner` as a shared Flutter widget (via `mobile_scanner` package) so the same implementation is reused.
-- **Reusable ConfirmationDialog:** Both Flutter apps have multiple confirmation dialogs (clock-in confirm, void confirm, return confirm, goods receipt submit). Centralise into a single configurable `ConfirmationDialog` widget with title, body, confirm label, and cancel label parameters.
-
-#### Open Questions for the Team
-
-1. **Promotion App — member QR token lifetime:** What is the server-defined QR token expiry? This affects the countdown timer design and whether offline QR use is feasible at all after expiry.
-2. **POS App — Entra ID on shared device:** Azure Entra ID SSO typically assumes a personal device. For a shared POS tablet, we likely need ROPC (Resource Owner Password Credentials) or a device-code flow — or a brokered auth approach. This needs to be resolved before Epic 2.1 starts. **Backend/Auth input needed.**
-3. **POS App — ECR integration protocol:** What protocol does the ECR use? Serial/COM port, TCP socket, or HTTP? The Flutter app needs to know how to communicate with the ECR device locally or via backend proxy. **Backend/infra input needed.**
-4. **M2 Portal — approval chain depth:** Is the approval chain always two levels (submitter → approver → done) or is it configurable and variable depth? This significantly affects the `ApprovalHistoryTimeline` and `ApprovalActionPanel` complexity.
-5. **i18n — API content in BM:** Do promotion titles, descriptions, and discount rules need to be returned in both EN and BM from the API? If yes, the API contract needs a localised content strategy. **Backend input needed.**
-6. **Notification delivery in portal:** Real-time (SignalR) vs. polling — has this been decided? SignalR is preferred but requires infra planning.
-7. **M2 Portal receipt printer support (POS App):** Which Bluetooth/USB receipt printer models are in scope? This affects how the `ReceiptView` component generates printable output.
-8. **Promotions — discount stacking rules:** Can multiple promotions apply to a single transaction? Is this controlled by the backend's `POST /promotions/calculate` endpoint? The UI needs to know whether to show a single discount or a breakdown of stacked discounts.
-
-#### Files Written
-- `docs/backlog/FRONTEND-BACKLOG.md` — comprehensive frontend product backlog, all three apps
-
-### 2026-05-12 — Sprint 2: Member Registration UI + Approval Workflow UI
-
-#### What Was Built
-
-**meka-promos (Flutter)**
-- **Registration flow** (`lib/features/registration/`):
-  - `registration_screen.dart` — phone number input, locale switcher (ZHT/ZHS/EN), Send OTP; validates Malaysian phone format
-  - `otp_verification_screen.dart` — 6-digit OTP with per-cell auto-focus, paste support on first cell, 60-second countdown timer, auto-submit on final digit, resend flow
-  - `profile_setup_screen.dart` — bilingual name fields (ZHT last/first + EN first/last) + email; calls RegistrationService; sets `memberSessionProvider` on success; navigates to `/`
-  - `registration_service.dart` — Dio stubs: `sendOtp`, `verifyOtp`, `register`; `registrationPhoneProvider` for phone persistence across screens
-- **Profile** (`lib/features/profile/`):
-  - `profile_screen.dart` — member name (EN + ZHT), phone, prominent QR code via `QrImageView` (qr_flutter 4.1.0), memberSince, "Edit Profile" button; uses `memberSessionProvider` first, falls back to `memberProfileProvider` (API), error+retry state
-  - `edit_profile_screen.dart` — editable name fields (ZHT+EN rows), email; phone read-only; updates `memberSessionProvider` and invalidates API cache; `AppBar` Save action
-  - `profile_service.dart` — `MemberProfile` model (id, phone, firstNameZht/En, lastNameZht/En, email, qrCode, memberSince); `ProfileService` Dio stubs; `memberProfileProvider`; `memberSessionProvider` (auth guard state)
-- **go_router** added (`^14.3.0`):
-  - Routes: `/` (HomeScreen), `/registration`, `/registration/otp`, `/registration/profile`, `/profile/edit`
-  - Auth guard via `_RouterRefresher` (ChangeNotifier) bridging `memberSessionProvider` to `refreshListenable`
-  - Unauthenticated → `/registration`; authenticated → prevents `/registration` redirect loop
-- **`app.dart`** converted from `MaterialApp` + `home:` to `ConsumerStatefulWidget` + `MaterialApp.router`
-- **`home_screen.dart`** updated: Profile tab + My QR tab both render `ProfileScreen`; sign-out clears `memberSessionProvider`; nav labels are l10n-resolved
-- **ARB files** (all 3: EN/ZHT/ZHS) extended with 17 new keys: `phoneNumber`, `sendOtp`, `otpVerification`, `otpSentTo`, `resendIn`, `resendOtp`, `profileSetup`, `firstNameZht/En`, `lastNameZht/En`, `emailAddress`, `completeRegistration`, `editProfile`, `save`, `cancel`, `memberCard`, `memberSince`, `phone`, `registrationTitle`, `registrationSubtitle`
-- `flutter pub get` ✅
-
-**m2-portal (Blazor)**
-- **`Pages/Approvals/ApprovalList.razor` + `.razor.cs`** — `[Authorize]`, table of pending approvals (EntityType, EntityId, RequestedBy, RequestedAt, Status chip, Actions); inline Approve/Reject buttons with snackbar feedback; Details link → detail page; Policy Settings button
-- **`Pages/Approvals/ApprovalDetail.razor` + `.razor.cs`** — `[Authorize]`; breadcrumbs; full-width pending action banner (ADR-approved prominence pattern); split layout (left: details card + `MudTimeline` history; right: comment TextField + Approve/Reject/Escalate buttons); navigates back to list on action
-- **`Pages/Approvals/ApprovalPolicySettings.razor` + `.razor.cs`** — `[Authorize]`; table with inline edit per entity type: EscalationMode dropdown (SAP HCM Hierarchy / Step-by-step Position — ADR-014), MaxLevels numeric field; optimistic in-memory update on save
-- **`Services/ApprovalService.cs`** — HttpClient-based stub; records: `ApprovalRequest`, `ApprovalDetailDto` (renamed to avoid conflict with Razor partial class), `ApprovalStep`, `ApprovalPolicyConfig`; enums: `ApprovalStatus`, `EscalationMode`
-- **`Shared/NavMenu.razor`** — "Approvals" link added with `MudBadge` showing `_pendingCount` (static 0 for now, Sprint 3 will wire SignalR)
-- **`Program.cs`** — `ApprovalService` registered via typed `HttpClient`; `M2PortalBff:BaseUrl` from config
-- `dotnet build` ✅ (0 errors, 0 warnings)
-
-#### Key Technical Decisions Made
-
-1. **`qr_flutter` 4.1.0** chosen for QR display — `QrImageView` widget wraps the qr package, white background container for camera readability, `QrVersions.auto` for data-size-appropriate encoding
-2. **`memberSessionProvider` as auth source** (not `authStateProvider` MSAL) — phone-OTP registration is the primary consumer auth path; MSAL `authStateProvider` retained for future multi-account interop
-3. **`_RouterRefresher extends ChangeNotifier`** pattern for go_router + Riverpod bridge — avoids recreating `GoRouter` on every build; `ref.listen` in `build()` fires `refresh()` on session state changes
-4. **`ConsumerStatefulWidget` for `MekaPromosApp`** — required to hold `_router` and `_refresher` as late finals, avoiding go_router recreation on rebuild
-5. **`ApprovalDetailDto`** naming — service DTO renamed to avoid C# namespace conflict with the Razor `partial class ApprovalDetail` in `M2Portal.Pages.Approvals`
-6. **OTP paste via `maxLength: 6` on first cell** — first cell accepts up to 6 chars; `_onDigitChanged` distributes pasted digits across all 6 fields; others accept 1 char to handle manual entry auto-advance
-7. **MudTimeline for approval history** — `TimelinePosition.Start` keeps actor/event info cleanly left-aligned; icon colour maps to approval status (success/error/info/warning)
-8. **Inline edit in ApprovalPolicySettings** — avoids a separate edit dialog/page for simple two-field updates; row swaps between read and edit mode controlled by `_editingEntityType` string
-
-#### Watch-Outs for Sprint 3
-
-- **`memberSessionProvider` persistence**: Currently in-memory only — cleared on app restart. Need `shared_preferences` to persist the session token across restarts (noted in Sprint 1 learnings).
-- **OTP auto-read (Android SMS Retriever)**: The OTP screen has the UI wired but no Android SMS Retriever integration yet. Sprint 3 should add `sms_autofill` or similar plugin.
-- **QR brightness boost**: `SystemChrome` brightness override for My QR / Profile tabs when QR is on screen is not yet implemented. Needed per the UX pattern noted in Sprint 1 learnings.
-- **`_pendingCount` in NavMenu**: Static 0. Sprint 3 SignalR integration (ADR-005) should push live pending count to update the badge.
-- **`AuthorizeAttribute` on Approvals pages**: Already set — but `ApprovalPolicySettings` may need an additional role check (admin-only) in Sprint 3 once authorization module is wired.
-- **`ApprovalDetailDto` vs `ApprovalDetail`** naming: The DTO is `ApprovalDetailDto` to avoid the Blazor component class collision. Ensure any new usages reference `M2Portal.Services.ApprovalDetailDto`.
-
-
-
-**From Keyser (Architecture) — resolves open questions:**
-- **D7 (SignalR) resolved:** ADR-005 confirms Notification module uses SignalR for Blazor web. Hub co-located with `M2PortalBff`. `NotificationBell` and `NotificationDropdownPanel` can be implemented against SignalR — no polling fallback needed unless SignalR unavailable.
-- **Riverpod confirmed (ADR-007):** Both Flutter apps must use Riverpod exclusively. All state management patterns (async data loading, QR expiry countdown, cart persistence) should use Riverpod providers and `AsyncValue`.
-
-**From McManus (Backend Dev) — resolves open questions:**
-- **D3 (QR token) partially resolved:** BE-REC-001 R5 establishes signed JWTs with 5-minute TTL for coupon QR codes. Apply the same assumption to the member QR code (`QrCodeScreen` countdown timer) until OQ-11 is formally decided. Design the countdown timer around a 5-minute (300s) window.
-- **D4 (discount stacking):** McManus recommends on-demand coupon issuance (lazy on first `GET /members/me/coupons`). Stacking rules (OQ-12) still pending — design `DiscountSummaryPanel` to support both single and stacked discount display; backend will confirm via the `POST /promotions/calculate` response shape.
-- **D2 (ECR protocol):** Same as OQ-01; unresolved. `EcrStatusIndicator` design should plan for backend-proxy mode as the default assumption (HTTP/REST via backend) pending client confirmation.
-
-**From Verbal (Tester):**
-- flutter_test is confirmed for unit/widget tests; Playwright for Blazor e2e. Skeleton loader and error state patterns (documented in Fenster's learnings) must have corresponding widget test coverage — test the empty/error render paths, not just the happy path.

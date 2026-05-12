@@ -9,6 +9,8 @@
 ## Learnings
 
 <!-- Append learnings below -->
+
+2026-05-12 — Sprint 2: 8 EF Core entity configs, migration 20260512010000, DbContext, DATA-DESIGN.md updated. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.
 2026-05-12: Chose PostgreSQL for its enterprise features, cost, and .NET support. Adopted shared DB with TenantId column for multi-tenancy. Key tables include audit columns, soft delete, and strategic indexes.
 
 2026-05-12 — Sprint 2: Delivered EF Core entity configurations and migration for Members, Approvals, and Notifications domains. Key decisions: `ApprovalStep` extends `BaseEntity` (McManus added full audit trail — followed domain); enums (`ApprovalStatus`, `ApproverType`, `ApprovalMode`) stored as varchar strings via `HasConversion<string>()`; `ApprovalPolicy.MaxLevels` default is 2 (domain's value, not the task spec's 3); `OtpRequest` and `NotificationLog` are lightweight entities (no BaseEntity — no TenantId/ShopId); `NotificationLog` uses `Restrict` delete on template FK to preserve audit history; all `BilingualText` owned types use `OwnsOneBilingual` extension from Sprint 1 generating `{prop}_en`/`{prop}_zht` columns; snapshot and Designer.cs written by hand — recommend regenerating with `dotnet ef` once McManus finalises all domain factories.

@@ -10,6 +10,8 @@
 
 <!-- Append learnings below -->
 
+### 2026-05-12 — Sprint 2: Approval engine, Notification service, Member API delivered. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.
+
 ### 2026-05-12 — Sprint 1: Backend Platform Foundation
 
 **What was built:**

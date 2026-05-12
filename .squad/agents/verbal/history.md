@@ -9,6 +9,8 @@
 ## Learnings
 
 <!-- Append learnings below -->
+
+2026-05-12 — Sprint 2: 17 unit tests, integration harness, 3 projects delivered. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.
 - 2026-05-12: Test strategy established. Key decisions: test pyramid (70/20/10), tool choices (xUnit, flutter_test, bUnit, Playwright, Pact, k6, Restler, OWASP ZAP). Risks: SAP integration testability, auth complexity, device fragmentation. Recommend: automate security/perf, mock SAP, enforce contract tests.
 - 2026-05-12 (Sprint 2): Wrote contract and unit test stubs for Approval, Notification, Member APIs. 17 unit tests passing. Integration test scaffold (WebApplicationFactory) ready for McManus's endpoint delivery. Strategy: Moq-based contract documentation tests compile and pass now; each test carries a note for the McManus implementation to run real assertions against. Domain entity factory methods not needed — McManus pre-built public constructors on all domain entities. ISmsGateway structural test confirms ADR-010 abstraction at type-system level. OTP domain invariant tests verify MarkUsed() contract inline.
 

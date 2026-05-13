@@ -36,12 +36,33 @@
 
 ## Active Decisions
 
-### ADR-001: Architecture Style — Modular Monolith
-**Date:** 2026-05-12 | **Status:** Accepted | **Author:** Keyser
+### ADR-001: Architecture Style — Modular Monolith with HTTP Cross-Module Communication
+**Date:** 2026-05-12 | **Updated:** 2026-05-13 | **Status:** Accepted (Revised) | **Author:** Keyser
 
-Adopt a **Modular Monolith** as primary architecture. Single deployable unit per BFF concern; bounded contexts as separate C# projects communicating only via injected interfaces. Decomposition-ready: extracting a module to a standalone service requires no interface redesign—only an operational deployment decision.
+Adopt a **Modular Monolith** as primary architecture. Single deployable unit; bounded contexts as separate C# projects (domain modules). **Cross-module communication uses HTTPS REST over typed HttpClients targeting localhost — not in-process DI injection.** Within a module, internal services may use DI freely.
 
-**Rejected:** Microservices (premature for team size/maturity), simultaneous Hybrid model (introduces two operational models before business value delivered).
+**Communication rules:**
+- Module → Module: typed `HttpClient` → localhost REST endpoint (e.g., `ISalesModuleClient` calls `GET /internal/sales/...`)
+- BFF → Module: typed `HttpClient` → module's REST endpoints (same process, same base URL)
+- Intra-module: DI injection is permitted and preferred (e.g., `IDiscountEngine` injecting `IPromotionService` within the Promotions module)
+
+**What changed from original ADR-001 (2026-05-12):** The original stated modules communicate "only via injected interfaces." This is revised: cross-module boundaries are enforced via HTTP contracts, not DI. The single deployable unit is preserved — HTTP calls target localhost within the same process. In-process DI remains valid only within a single module's own service layer.
+
+**Trade-offs:**
+| Factor | Cost | Benefit |
+|--------|------|---------|
+| Latency | ~0.1–1 ms localhost overhead per cross-module call | Negligible for non-hot paths |
+| Decomposition | No additional cost — HTTP contract is already the decomposition seam | Extracting a module requires only a DNS/URL config change, zero interface redesign |
+| Contract enforcement | HTTP boundary enforces explicit contracts; no accidental coupling via shared DI registrations | Prevents module leakage; serialization makes implicit dependencies visible |
+| Testability | Integration tests via `TestWebApplicationFactory` remain transparent — cross-module HTTP calls hit same in-process `TestServer` | No mocking infrastructure change for integration tests |
+| Complexity | Adds `Platform.InterModule` typed-client layer; requires base-URL config per environment | Tolerable; one-time setup |
+
+**Rejected alternatives:**
+- Continue in-process DI for cross-module calls: fast, but creates invisible coupling; prevents safe decomposition; all modules share a DI container with no enforced boundary.
+- Full microservices: premature for team size/maturity; network partitions and distributed transactions not justified.
+- Hybrid (some DI, some HTTP): introduces inconsistent patterns; developers can't reason about which boundary is enforced.
+
+**Implementation note:** All modules register their endpoints in the same `WebApplication`. A `Platform.InterModule` project provides typed `HttpClient` registrations with a configurable base URL (default: `http://localhost:{port}`; test: `TestServer`). Module endpoint paths use a `/modules/{module-name}/` prefix to distinguish inter-module calls from BFF-facing endpoints.
 
 ---
 

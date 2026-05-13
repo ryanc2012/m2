@@ -31,7 +31,7 @@ This platform is a **greenfield enterprise layer** built on top of an existing S
 ## 2. ADR-001: Architecture Style Decision
 
 ### Status
-**Accepted** — 2026-05-12
+**Accepted** — 2026-05-12 | **Final decision:** 4 processes (3 BFFs + 1 Platform API), communicate via HTTPS REST
 
 ### Context
 
@@ -60,7 +60,7 @@ We are building a greenfield enterprise platform that:
 **Verdict for this context:** Premature. The team has not yet established domain boundaries through working software. Microservices require operational maturity that does not yet exist here. The distributed systems tax — retries, eventual consistency, distributed tracing, saga orchestration — would dominate early sprints and delay business value delivery.
 
 #### Option B: Modular Monolith (Chosen)
-**Description:** A single deployable unit (or a small number of deployable units by BFF concern) with internal module boundaries enforced by code structure. Bounded contexts communicate via in-process interfaces (C# interfaces, not HTTP). Each module owns its own data model within a shared database (schema-per-module or table-prefix separation).
+**Description:** Platform Core (`M2.Platform.Api`) is an independent process; each BFF is its own independent process. Internal module boundaries within `M2.Platform.Api` are enforced by code structure. BFFs communicate with Platform.Api via **HTTPS REST with `X-Api-Key`** — not in-process. Each module owns its own data model within a shared database (schema-per-module or table-prefix separation).
 
 | Gain | Cost |
 |------|------|
@@ -95,7 +95,7 @@ The architecture is **decomposition-ready**: every bounded context has an interf
 - Internal module boundaries **must** be enforced via C# project references (a module may not directly call another module's internal types — only its public interface)
 - Each module has its own EF Core `DbContext` or `ModelBuilder` configuration — no cross-module entity navigation
 - Cross-module communication is via injected interfaces, **never** direct class instantiation across boundaries
-- BFF projects reference only their module's surface interface — they do not reach into domain internals
+- BFF projects call `M2.Platform.Api` via typed HTTP clients (`IXxxModuleClient`) configured in `M2.Infrastructure/InterModule/` — they do not reach into domain internals. Communication is HTTPS REST with `X-Api-Key` header.
 - When a module grows beyond the team's comfort: extract it into a standalone service behind the same interface — no BFF changes required
 - Team must review module boundaries quarterly and make explicit decisions to keep or extract
 
@@ -130,9 +130,9 @@ C4Context
     Rel(manager, m2PortalBFF, "Uses", "HTTPS/REST")
     Rel(sysadmin, apigw, "Manages API keys via")
 
-    Rel(mekaPosBFF, platformCore, "Calls", "In-process / HTTP")
-    Rel(mekaPromosBFF, platformCore, "Calls", "In-process / HTTP")
-    Rel(m2PortalBFF, platformCore, "Calls", "In-process / HTTP")
+    Rel(mekaPosBFF, platformCore, "Calls", "HTTPS REST (X-Api-Key)")
+    Rel(mekaPromosBFF, platformCore, "Calls", "HTTPS REST (X-Api-Key)")
+    Rel(m2PortalBFF, platformCore, "Calls", "HTTPS REST (X-Api-Key)")
 
     Rel(platformCore, sap, "Integrates via SAP Adapter", "RFC/BAPI or SAP REST OData")
     Rel(platformCore, fcm, "Sends push via Notification Module", "HTTPS")
@@ -193,6 +193,72 @@ C4Component
     Rel(authzModule, appDb, "Reads authorization objects")
     Rel(apiKeyModule, appDb, "Reads/Writes hashed keys")
 ```
+
+### Deployment Topology (ADR-001 Final)
+
+The final ADR-001 decision runs as **4 independent processes**:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  MekaPosBff     │    │ MekaPromosBff   │    │  M2PortalBff    │
+│  (POS staff)    │    │ (member app)    │    │ (admin portal)  │
+│  :5000          │    │  :5001          │    │  :5002          │
+└────────┬────────┘    └────────┬────────┘    └────────┬────────┘
+         │                      │                      │
+         └──────────────────────┼──────────────────────┘
+                                │ HTTPS REST (X-Api-Key)
+                                ▼
+                    ┌───────────────────────┐
+                    │   M2.Platform.Api     │
+                    │   (platform core)     │
+                    │   :5100               │
+                    │                       │
+                    │  /modules/members/    │
+                    │  /modules/approvals/  │
+                    │  /modules/promotions/ │
+                    │  /modules/sales/      │
+                    │  /modules/attendance/ │
+                    │  /modules/goods-...   │
+                    │  /modules/reporting/  │
+                    │  /modules/notifications/│
+                    └──────────┬────────────┘
+                               │
+                               ▼
+                    ┌───────────────────────┐
+                    │   PostgreSQL (Azure)  │
+                    └───────────────────────┘
+```
+
+### Projects
+
+| Project | Role | Port |
+|---------|------|------|
+| `M2.Platform.Api` | Platform core — all domain modules, DB access | 5100 |
+| `M2.MekaPosBff` | BFF for Flutter POS staff app | 5000 |
+| `M2.MekaPromosBff` | BFF for Flutter member/promos app | 5001 |
+| `M2.M2PortalBff` | BFF for Blazor manager/admin portal | 5002 |
+| `M2.Domain` | Domain models, interfaces, DTOs | — |
+| `M2.Infrastructure` | EF Core, service implementations, migrations | — |
+| `M2.SharedKernel` | Base entities, Result<T>, middleware | — |
+| `M2.SapConnector` | SAP OData/NCo client stubs | — |
+
+### Communication Pattern
+
+| Direction | Transport | Auth |
+|-----------|-----------|------|
+| BFF → Platform.Api | HTTPS REST | `X-Api-Key` header — validated by `ApiKeyMiddleware` on Platform.Api |
+| Platform.Api → DB | EF Core / TCP | PostgreSQL connection string |
+| Platform.Api → SAP | HTTPS OData / RFC-over-VPN | SAP credentials |
+| Module → Module (within Platform.Api) | In-process (C# interfaces) | N/A — same process |
+
+### Module Endpoints
+
+All domain modules are served at `/modules/{name}/` on `M2.Platform.Api`. BFFs call these via typed
+`IXxxModuleClient` HTTP clients registered in `M2.Infrastructure/InterModule/`.
+
+`InterModuleServiceExtensions.AddInterModuleClients()` configures each typed client with:
+- `BaseAddress` pointing to `Platform:BaseUrl` (defaults to `https://localhost:5100`)
+- `X-Api-Key` header set from `Platform:ApiKey`
 
 ---
 
@@ -347,10 +413,10 @@ No authorization logic in the database layer.
 
 | Component | Container | Notes |
 |-----------|-----------|-------|
-| Meka POS BFF | `pos/meka-pos-bff` | ASP.NET Core, port 5001 |
-| Meka Promotions BFF | `pos/meka-promos-bff` | ASP.NET Core, port 5002 |
-| M2 Portal BFF | `pos/m2-portal-bff` | ASP.NET Core, port 5003 |
-| Platform Core | Shared library — included in each BFF | Not a separate container in Phase 1 |
+| Meka POS BFF | `pos/meka-pos-bff` | ASP.NET Core, port 5000 |
+| Meka Promotions BFF | `pos/meka-promos-bff` | ASP.NET Core, port 5001 |
+| M2 Portal BFF | `pos/m2-portal-bff` | ASP.NET Core, port 5002 |
+| Platform Core (`M2.Platform.Api`) | `pos/m2-platform-api` | ASP.NET Core, port 5100 — independent process; all domain modules |
 | Database | `mcr.microsoft.com/mssql/server` or PostgreSQL | Vol-mounted in dev |
 | SAP Adapter | Part of Platform Core container | Isolated by module boundary |
 | SignalR Notification Hub | Sidecar or co-located with BFF | See §8 |
@@ -370,13 +436,14 @@ services:
     build:
       context: .
       dockerfile: src/MekaPosBff/Dockerfile
-    ports: ["5001:8080"]
+    ports: ["5000:8080"]
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__AppDb=${DB_CONNECTION_STRING}
+      - Platform__BaseUrl=https://platform-api:8080
+      - Platform__ApiKey=${PLATFORM_API_KEY}
       - Entra__TenantId=${ENTRA_TENANT_ID}
       - Entra__ClientId=${ENTRA_CLIENT_ID}
-    depends_on: [db]
+    depends_on: [platform-api]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
@@ -387,15 +454,37 @@ services:
     build:
       context: .
       dockerfile: src/MekaPromosBff/Dockerfile
-    ports: ["5002:8080"]
-    depends_on: [db]
+    ports: ["5001:8080"]
+    environment:
+      - Platform__BaseUrl=https://platform-api:8080
+      - Platform__ApiKey=${PLATFORM_API_KEY}
+    depends_on: [platform-api]
 
   m2-portal-bff:
     build:
       context: .
       dockerfile: src/M2PortalBff/Dockerfile
-    ports: ["5003:8080"]
+    ports: ["5002:8080"]
+    environment:
+      - Platform__BaseUrl=https://platform-api:8080
+      - Platform__ApiKey=${PLATFORM_API_KEY}
+    depends_on: [platform-api]
+
+  platform-api:
+    build:
+      context: .
+      dockerfile: src/Platform.Api/Dockerfile
+    ports: ["5100:8080"]
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__AppDb=${DB_CONNECTION_STRING}
+      - Platform__ApiKey=${PLATFORM_API_KEY}
     depends_on: [db]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -665,7 +754,7 @@ Azure Container Apps Environment (internal VNet)
   └── M2 Portal BFF         (internal ingress)
         │
         ▼
-    Platform Core modules (in-process — no network hop)
+    M2.Platform.Api :5100  (HTTPS REST — BFFs authenticate via X-Api-Key)
         │
         ▼
     SAP via private network / ExpressRoute / VPN

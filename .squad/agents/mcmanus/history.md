@@ -9,6 +9,14 @@
 ## Learnings
 
 <!-- Append learnings below -->
+
+## 2026-05-13 — M2.Platform.Api Extraction Complete
+- Successfully extracted M2.Platform.Api as independent process on port 5100
+- All 8 module endpoint groups now registered only in Platform.Api/Program.cs
+- BFFs stripped of module mappings; use AddInterModuleClients() to call platform via HTTP
+- Added docs/ARCHITECTURE.md with 4-process topology diagram
+- Note: Program.cs needs UseAuthentication/UseAuthorization + auth scheme registered (Copilot fixed post-extraction)
+
 2026-05-12 — Sprint 4: Goods Receipt API, SAP Integration Layer (real SapODataClient), Reporting & Dashboard API, Notification History. Project feature-complete for UAT.
 2026-05-12 — Sprint 3: Promotions, Sales, Attendance APIs delivered. Domain entities/interfaces for all three, in-memory stubs, BFF endpoints. Coupon pre-issuance, stackable flag, refund method enforcement, ECR deferred. dotnet build clean.
 

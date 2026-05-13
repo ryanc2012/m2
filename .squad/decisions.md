@@ -36,6 +36,176 @@ Adopt a **Modular Monolith** as primary architecture. Single deployable unit; bo
 
 <!-- ADR-001 revision merged from inbox: copilot-directive-20260513.md, keyser-adr001-http-impact.md, keyser-adr001-update.md, mcmanus-intermodule-all-modules.md, mcmanus-intermodule-pilot.md, verbal-intermodule-test-strategy.md -->
 
+## 2026-05-13
+
+### Decision: M2.Platform.Api Extraction — 4-Process Topology
+
+**Author:** McManus (Backend Dev)
+**Date:** 2026-05-13
+**Status:** Implemented
+
+#### Context
+
+ADR-001 (final) confirms the platform core must run as an independent process. BFFs call it via HTTP.
+This ADR was previously ambiguous — Platform:BaseUrl pointed to self (localhost loopback), blurring the
+process boundary. This decision documents the extraction and its consequences.
+
+#### Decisions Made
+
+1. M2.Platform.Api runs on port 5100
+
+`M2.Platform.Api` is a new, independent ASP.NET Core process running on `https://localhost:5100`.
+It hosts all 8 domain module endpoint groups (`/modules/{name}/`), registers `AddInfrastructure`, and
+owns all EF Core / domain service registrations that serve cross-BFF module calls.
+
+2. BFFs use platform API key (not internal secret) for outbound calls to platform
+
+BFFs are external callers. They send `X-Api-Key` (not `X-Internal-Call` / `X-Internal-Secret`) when
+calling the Platform API. The API key is read from `Platform:ApiKey` config and set as a default header
+in `InterModuleServiceExtensions.AddInterModuleClients()`.
+
+`X-Internal-Call` + `X-Internal-Secret` is reserved for any intra-platform module-to-module HTTP calls
+(if needed in future). The `ApiKeyMiddleware` continues to handle both patterns.
+
+3. Module endpoints moved from BFF-hosted to platform-hosted
+
+All `app.MapXxxModule()` calls have been removed from the 3 BFF `Program.cs` files. Module endpoints
+(`/modules/members/`, `/modules/sales/`, etc.) are only registered in `M2.Platform.Api/Program.cs`.
+
+BFF-specific endpoints (`/sales/transactions`, `/members/register`, `/approvals/requests`, etc.)
+remain in their respective BFF `Endpoints/` folders and continue to use inter-module typed HTTP clients.
+
+4. M2.Infrastructure/Modules/ remains in Infrastructure, registered only in Platform.Api
+
+The `XxxModuleEndpoints.cs` files stay in `M2.Infrastructure/Modules/`. BFFs no longer reference
+the `M2.Infrastructure.Modules` namespace — the `using M2.Infrastructure.Modules;` import has been
+removed from all BFF `Program.cs` files.
+
+#### Config Changes
+
+- All BFF `appsettings.json`: `Platform:BaseUrl` updated from `https://localhost:5000` → `https://localhost:5100`
+- All BFF `appsettings.json`: `Platform:ApiKey: "platform-dev-key"` added
+- `InterModuleOptions.BaseUrl` default updated from `https://localhost:5000` → `https://localhost:5100`
+- `InterModuleOptions.ApiKey` property added (default: `"platform-dev-key"`)
+
+#### Files Created
+
+- `src/M2.Platform.Api/M2.Platform.Api.csproj`
+- `src/M2.Platform.Api/Program.cs`
+- `src/M2.Platform.Api/appsettings.json`
+- `src/M2.Platform.Api/appsettings.Development.json`
+- `docs/ARCHITECTURE.md` (developer quick-reference for 4-process topology)
+
+#### Integration Test Impact
+
+`PlatformWebApplicationFactory` (pre-existing stub) now resolves correctly against `M2.Platform.Api.Program`
+(namespaced class). Added `Microsoft.AspNetCore.TestHost` using to `PlatformWebApplicationFactory.cs`.
+
+---
+
+### Decision: Rewire Integration Test Harness for 4-Process Topology
+
+**Author:** Verbal (Test Engineer)
+**Date:** 2026-05-13
+**Status:** Decided
+
+#### Context
+
+The confirmed 4-process topology places all `/modules/{name}/` endpoints exclusively in `M2.Platform.Api`.
+BFFs call the Platform API via HTTP and do not host module endpoints themselves. The previous integration
+test harness (`TestWebApplicationFactory` / `M2IntegrationTestBase`) targeted the BFF `Program` class,
+meaning the 8 module smoke tests were asserting against the wrong process.
+
+#### Decisions
+
+1. Module tests now target `PlatformWebApplicationFactory` (not BFF factory)
+
+All 8 `*ModuleTests.cs` files now inherit `M2PlatformIntegrationTestBase` and declare
+`IClassFixture<PlatformWebApplicationFactory>`. The platform factory spins up
+`M2.Platform.Api.Program` in-memory with the same test-safe overrides used by the BFF factory
+(in-memory EF Core DB, `TestAuthHandler`, NoOp SAP stubs).
+
+2. `M2PlatformIntegrationTestBase` sets platform authentication headers
+
+Every `HttpClient` created by `M2PlatformIntegrationTestBase` carries:
+
+| Header | Value |
+|---|---|
+| `X-Api-Key` | `test-api-key` |
+| `X-Internal-Call` | `true` |
+| `X-Internal-Secret` | `internal` |
+
+These match the values injected into `PlatformWebApplicationFactory.ConfigureWebHost` via
+`Platform:ApiKey` and `Platform:InternalCallSecret` in-memory config keys.
+
+3. `M2BffIntegrationTestBase` remains for BFF-level tests
+
+`M2IntegrationTestBase` was split into two classes in `M2IntegrationTestBase.cs`:
+
+- `M2BffIntegrationTestBase` — typed to `WebApplicationFactory<Program>` (BFF `Program`). Retained for
+  any future tests that validate BFF-level concerns (health endpoints, BFF auth flows, BFF routing).
+- `M2PlatformIntegrationTestBase` — typed to `PlatformWebApplicationFactory`. All module smoke tests
+  use this.
+
+`ApprovalEndpointTests` (targeting `/api/approvals` BFF endpoints) was left unchanged — it uses
+`TestWebApplicationFactory` directly and tests BFF-level behaviour.
+
+4. `InterModuleTestHelper.WithInterModuleLoopback` is now generic
+
+Changed signature from `WebApplicationFactory<Program>` to `WebApplicationFactory<TEntryPoint> where TEntryPoint : class`
+so the helper works with both the BFF factory and the Platform factory when McManus wires
+`IXxxModuleClient` typed HTTP clients.
+
+5. Build status
+
+`M2.Tests.Integration` will not compile until McManus creates `src/M2.Platform.Api/M2.Platform.Api.csproj`.
+The project reference is in place. Unit tests (55/55) remain green.
+
+#### Consequences
+
+- When McManus lands `M2.Platform.Api`, the integration test project compiles and module smoke tests
+  exercise the real Platform API process boundary.
+- BFF integration tests continue to use `TestWebApplicationFactory` — no cross-contamination.
+- `PlatformWebApplicationFactory` exposes `ApprovalServiceMock` so `ApprovalsModuleTests` can control
+  the `IApprovalService` stub without touching production assembly internals.
+
+---
+
+### Verbal — Regression + Smoke Tests: InterModule HTTP Refactor
+
+**Date:** 2026-05-13 | **Author:** Verbal | **Requested by:** ryan-chung_mekim
+
+#### Context
+Regression run following the InterModule HTTP refactor (commits `5467ca2` + `6b8a405`).
+All 8 modules now expose `/modules/{name}/` endpoints consumed via typed `IXxxModuleClient` HTTP clients per ADR-001 (revised).
+
+#### Final Test Counts
+
+| Suite | Before | After | Delta |
+|-------|--------|-------|-------|
+| Unit (`M2.Tests.Unit`) | 55 | 55 | +0 |
+| Integration (`M2.Tests.Integration`) | 7 | 21 | +14 |
+| **Total** | **62** | **76** | **+14** |
+
+#### Unit Tests: No Adjustments Required
+
+All 55 unit tests passed without modification. The refactor changed how modules communicate externally (in-process DI → HTTP) but did not alter domain logic or service interfaces. Unit tests target the domain layer directly and were unaffected.
+
+#### Integration Tests Adjusted
+
+- `NotificationsModuleTests` (pre-existing, 3 tests): PASS (no changes needed)
+- Each module received 2 tests: a positive smoke test (with internal headers) and a negative test (without `X-Internal-Call` header). All 14 new tests PASS.
+
+#### Decisions
+
+- Approvals smoke test requires mock setup
+- Endpoint path corrections (task spec vs. actual)
+- Negative tests: wide-range status codes accepted (to be tightened once middleware is live)
+
+#### Build
+`dotnet build src/M2.sln` → **0 errors, 0 warnings** post-regression.
+
+
 ### Edie — Sprint 4 Schema Decisions
 - GoodsReceiptLineItem uses Cascade (not Restrict) for FK to GoodsReceiptNote
 - sap_outbox_entries has no cross-module FK constraints

@@ -9,6 +9,13 @@
 ## Learnings
 
 <!-- Append learnings below -->
+
+## 2026-05-13 — Integration Test Harness Rewired
+- PlatformWebApplicationFactory targets M2.Platform.Api.Program directly
+- M2PlatformIntegrationTestBase sets X-Api-Key + X-Internal-Call + X-Internal-Secret on every client
+- All 8 module smoke tests now use PlatformWebApplicationFactory
+- Integration tests depend on Platform.Api having UseAuthorization() in pipeline — confirmed working after Copilot fix
+
 2026-05-12 — Sprint 4: 15 new tests, 55/55 passing, domain invariants, NotificationLog.MarkAsRead(), reporting value objects. Project feature-complete for UAT.
 2026-05-12 — Sprint 3: 23 new tests (Promotions, Sales, Attendance, ECR scope guard). 40/40 passing. Test style: entity-direct + mock-contract. ADR/test number mapping noted.
 

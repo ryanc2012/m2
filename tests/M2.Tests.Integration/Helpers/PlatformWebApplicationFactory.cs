@@ -1,3 +1,4 @@
+using Hangfire;
 using M2.Domain.Approvals;
 using M2.Infrastructure;
 using M2.SharedKernel;
@@ -23,7 +24,20 @@ public class PlatformWebApplicationFactory : WebApplicationFactory<M2.Platform.A
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Test");
+        // "Development" is required so InfrastructureServiceExtensions suppresses the
+        // Firebase ADC exception (catch clause guards on environment.IsDevelopment()).
+        builder.UseEnvironment("Development");
+
+        // Remove DevSeedService so it doesn't run during test host startup.
+        // (It's only registered when environment.IsDevelopment(), but we need Development
+        //  above to bypass the Firebase catch clause.)
+        builder.ConfigureServices(services =>
+        {
+            var devSeed = services.FirstOrDefault(d =>
+                d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
+                d.ImplementationType == typeof(M2.Infrastructure.Seed.DevSeedService));
+            if (devSeed != null) services.Remove(devSeed);
+        });
 
         builder.ConfigureAppConfiguration((_, config) =>
         {
@@ -39,8 +53,9 @@ public class PlatformWebApplicationFactory : WebApplicationFactory<M2.Platform.A
                 ["Platform:InternalCallSecret"] = "internal",
                 // SAP connector — no real SAP needed (NoOp implementations registered by AddSapConnector)
                 ["SapConnector:BaseUrl"] = "https://sap-test.invalid",
-                // Fake connection string — replaced with in-memory DB below
-                ["ConnectionStrings:DefaultConnection"] = "",
+                // Fake connection string — valid format so PostgreSqlStorage ctor does not throw;
+                // replaced with in-memory DB in ConfigureTestServices below
+                ["ConnectionStrings:DefaultConnection"] = "Host=test;Database=test;Username=test;Password=test",
             });
         });
 
@@ -58,6 +73,10 @@ public class PlatformWebApplicationFactory : WebApplicationFactory<M2.Platform.A
             // Inject the controllable IApprovalService mock
             services.RemoveAll<IApprovalService>();
             services.AddScoped<IApprovalService>(_ => ApprovalServiceMock.Object);
+
+            // Override PostgreSQL Hangfire storage with in-memory so RecurringJob.AddOrUpdate
+            // in Program.cs does not fail during test host startup.
+            services.AddHangfire(config => config.UseInMemoryStorage());
         });
     }
 }

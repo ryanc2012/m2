@@ -1,5 +1,3 @@
-extern alias M2PlatformApi;
-
 using M2.Domain.Approvals;
 using M2.Infrastructure;
 using M2.SharedKernel;
@@ -19,7 +17,7 @@ namespace M2.Tests.Integration.Helpers;
 /// Test factory for M2.Platform.Api — spins up the platform process in-memory for integration tests.
 /// Module endpoint tests should use this factory, not the BFF factory.
 /// </summary>
-public class PlatformWebApplicationFactory : WebApplicationFactory<M2PlatformApi::Program>
+public class PlatformWebApplicationFactory : WebApplicationFactory<M2.Platform.Api.Program>
 {
     public Mock<IApprovalService> ApprovalServiceMock { get; } = new();
 

@@ -1,5 +1,10 @@
+using Hangfire;
 using M2.Infrastructure;
 using M2.Infrastructure.Modules;
+using M2.Infrastructure.Notifications;
+using M2.Infrastructure.Outbox;
+using M2.Platform.Api.Hubs;
+using M2.SapConnector;
 using M2.SharedKernel;
 using M2.SharedKernel.Middleware;
 using Microsoft.AspNetCore.Authentication;
@@ -28,7 +33,10 @@ public partial class Program
                 .WriteTo.Console());
 
             // All domain services and EF Core
-            builder.Services.AddInfrastructure(builder.Configuration);
+            builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+
+            // SAP OData / NCo clients
+            builder.Services.AddSapConnector(builder.Configuration);
 
             // Inter-module auth options (Platform:InternalCallSecret for intra-platform module calls)
             builder.Services.AddInterModuleAuth(builder.Configuration);
@@ -48,6 +56,10 @@ public partial class Program
 
             builder.Services.AddHealthChecks();
 
+            // SignalR — in-process push to Portal/BFF connected clients
+            builder.Services.AddSignalR();
+            builder.Services.AddScoped<ISignalRNotificationDispatcher, SignalRNotificationDispatcher>();
+
             var app = builder.Build();
 
             app.UseSerilogRequestLogging();
@@ -55,12 +67,37 @@ public partial class Program
             app.UseSwagger();
             app.UseSwaggerUI();
 
+            // X-Api-Key WebSocket auth: promote ?access_token= to Authorization header for SignalR
+            app.Use(async (context, next) =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                    context.Request.Headers["X-Api-Key"] = accessToken.ToString();
+                await next(context);
+            });
+
             app.UseAuthentication();
             // Validates X-Api-Key from BFFs; grants InternalCall identity for X-Internal-Call requests
             app.UseMiddleware<ApiKeyMiddleware>();
             app.UseAuthorization();
 
             app.MapHealthChecks("/health");
+
+            // SignalR hub endpoint
+            app.MapHub<NotificationHub>("/hubs/notifications");
+
+            // Hangfire dashboard — development only
+            if (app.Environment.IsDevelopment())
+            {
+                app.MapHangfireDashboard("/hangfire");
+            }
+
+            // Register SAP outbox recurring job — every 30 seconds
+            RecurringJob.AddOrUpdate<SapOutboxWorker>(
+                "sap-outbox-worker",
+                w => w.ProcessAsync(CancellationToken.None),
+                "*/30 * * * * *");
 
             // All 8 domain module endpoint groups
             app.MapMembersModule();
@@ -101,3 +138,4 @@ internal sealed class PlatformNoOpAuthHandler(
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         => Task.FromResult(AuthenticateResult.NoResult());
 }
+

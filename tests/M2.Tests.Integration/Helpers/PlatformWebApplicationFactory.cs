@@ -61,10 +61,16 @@ public class PlatformWebApplicationFactory : WebApplicationFactory<M2.Platform.A
 
         builder.ConfigureTestServices(services =>
         {
-            // Replace PostgreSQL DbContext with in-memory for test isolation
+            // Replace PostgreSQL DbContext with in-memory for test isolation.
+            // UseInternalServiceProvider isolates EF's provider services so Npgsql and InMemory
+            // service registrations from AddInfrastructure don't collide in the same service provider.
             services.RemoveAll<DbContextOptions<M2DbContext>>();
+            var inMemorySp = new ServiceCollection()
+                .AddEntityFrameworkInMemoryDatabase()
+                .BuildServiceProvider();
             services.AddDbContext<M2DbContext>(opts =>
-                opts.UseInMemoryDatabase($"M2PlatformTestDb-{Guid.NewGuid()}"));
+                opts.UseInMemoryDatabase($"M2PlatformTestDb-{Guid.NewGuid()}")
+                    .UseInternalServiceProvider(inMemorySp));
 
             // Replace Azure AD JWT auth with a test scheme that accepts all requests
             services.AddAuthentication("Test")

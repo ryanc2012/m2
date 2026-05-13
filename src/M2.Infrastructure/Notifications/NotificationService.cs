@@ -20,6 +20,12 @@ internal sealed class NotificationService(
         string userId, Guid templateId, Dictionary<string, string> parameters,
         CancellationToken ct = default)
     {
+        if (string.IsNullOrEmpty(userId))
+        {
+            logger.LogWarning("SendPushAsync called with null/empty userId — skipping dispatch");
+            return Result.Success();
+        }
+
         // S4.5 — push via SignalR to any connected web/BFF clients
         if (signalR is not null)
         {

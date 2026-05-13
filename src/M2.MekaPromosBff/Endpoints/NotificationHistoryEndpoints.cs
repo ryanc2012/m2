@@ -1,4 +1,4 @@
-using M2.Domain.Notifications;
+using M2.Infrastructure.InterModule.Interfaces;
 
 namespace M2.MekaPromosBff.Endpoints;
 
@@ -13,17 +13,17 @@ public static class NotificationHistoryEndpoints
             string memberId,
             int page,
             int pageSize,
-            INotificationHistoryService svc) =>
+            INotificationsModuleClient client) =>
         {
-            var result = await svc.GetByMemberAsync(tenantId, memberId, page, pageSize);
+            var result = await client.GetHistoryByMemberAsync(tenantId, memberId, page, pageSize);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
         group.MapPatch("/{notificationLogId:guid}/read", async (
             Guid notificationLogId,
-            INotificationHistoryService svc) =>
+            INotificationsModuleClient client) =>
         {
-            var result = await svc.MarkReadAsync(notificationLogId);
+            var result = await client.MarkReadAsync(notificationLogId);
             return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
         });
 

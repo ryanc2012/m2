@@ -1,4 +1,5 @@
 using M2.Infrastructure;
+using M2.Infrastructure.Modules;
 using M2.M2PortalBff.Endpoints;
 using M2.SapConnector;
 using M2.SharedKernel.Middleware;
@@ -58,6 +59,7 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
+    app.MapNotificationsModule();
     app.MapApprovalEndpoints();
     app.MapNotificationEndpoints();
     app.MapMemberAdminEndpoints();

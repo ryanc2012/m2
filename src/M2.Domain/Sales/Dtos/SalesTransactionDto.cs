@@ -20,7 +20,8 @@ public record CreateTransactionPayload(
     Guid? MemberId,
     string CashierId,
     string PaymentMethod,
-    IReadOnlyList<LineItemPayload> LineItems);
+    IReadOnlyList<LineItemPayload> LineItems,
+    string? IdempotencyKey = null);
 
 public record LineItemPayload(
     string ProductId,

@@ -3,6 +3,7 @@ using System;
 using M2.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace M2.Infrastructure.Migrations
 {
     [DbContext(typeof(M2DbContext))]
-    partial class M2DbContextModelSnapshot : ModelSnapshot
+    [Migration("20260513131321_Sprint4_IdempotencyKey")]
+    partial class Sprint4_IdempotencyKey
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

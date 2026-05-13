@@ -14,6 +14,8 @@ public class SalesTransaction : BaseEntity
     public SalesStatus Status { get; protected set; } = SalesStatus.Pending;
     public DateTimeOffset? CompletedAt { get; protected set; }
     public DateTimeOffset? VoidedAt { get; protected set; }
+    /// <summary>Client-supplied idempotency key — scoped to (TenantId, ShopId). BE-REC-001 R1.</summary>
+    public string? IdempotencyKey { get; protected set; }
 
     private readonly List<SalesLineItem> _lineItems = [];
     public IReadOnlyCollection<SalesLineItem> LineItems => _lineItems.AsReadOnly();
@@ -25,7 +27,8 @@ public class SalesTransaction : BaseEntity
         Guid shopId,
         Guid? memberId,
         string cashierId,
-        PaymentMethod paymentMethod)
+        PaymentMethod paymentMethod,
+        string? idempotencyKey = null)
     {
         TenantId = tenantId;
         ShopId = shopId;
@@ -33,6 +36,7 @@ public class SalesTransaction : BaseEntity
         CashierId = cashierId;
         PaymentMethod = paymentMethod;
         Status = SalesStatus.Pending;
+        IdempotencyKey = idempotencyKey;
     }
 
     public void AddLineItem(SalesLineItem item)

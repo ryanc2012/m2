@@ -55,11 +55,21 @@ public sealed class SalesTransactionConfiguration : BaseEntityConfiguration<Sale
             .HasColumnName("VoidedAt")
             .HasColumnType("timestamptz");
 
+        builder.Property(st => st.IdempotencyKey)
+            .HasMaxLength(256)
+            .HasColumnName("IdempotencyKey");
+
         builder.HasIndex(st => new { st.TenantId, st.ShopId, st.Status })
             .HasDatabaseName("IX_sales_transactions_TenantId_ShopId_Status");
 
         builder.HasIndex(st => st.MemberId)
             .HasDatabaseName("IX_sales_transactions_MemberId");
+
+        // BE-REC-001 R1: partial unique index on (TenantId, ShopId, IdempotencyKey) when not null
+        builder.HasIndex(st => new { st.TenantId, st.ShopId, st.IdempotencyKey })
+            .IsUnique()
+            .HasFilter("\"IdempotencyKey\" IS NOT NULL")
+            .HasDatabaseName("UIX_sales_transactions_TenantId_ShopId_IdempotencyKey");
 
         builder.HasQueryFilter(st => !st.IsDeleted);
     }

@@ -1,16 +1,15 @@
 using M2.Domain.Sales;
 using M2.SharedKernel;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace M2.Infrastructure.Sales;
 
-/// <summary>In-memory stub ReturnService. EF wiring deferred to Sprint 4.</summary>
-internal sealed class ReturnService(ISalesService salesService, ILogger<ReturnService> logger) : IReturnService
+internal sealed class ReturnService(M2DbContext db, ISalesService salesService, ILogger<ReturnService> logger) : IReturnService
 {
-    private static readonly Dictionary<Guid, ReturnTransaction> _returns = [];
-
     /// <summary>
-    /// Initiates return, enforcing that the refund method equals the original payment method (ADR-016).
+    /// Initiates return, enforcing that the refund method equals the original payment method (ADR-016)
+    /// and that the refund amount does not exceed the original transaction total.
     /// </summary>
     public async Task<Result<ReturnTransaction>> InitiateReturnAsync(
         Guid tenantId, Guid shopId, Guid originalTransactionId,
@@ -26,30 +25,37 @@ internal sealed class ReturnService(ISalesService salesService, ILogger<ReturnSe
             return Result.Failure<ReturnTransaction>(
                 $"Transaction {originalTransactionId} is not completed; cannot return.");
 
-        // ADR-016: refund must use the same payment method as the original transaction
-        var refundMethod = original.PaymentMethod;
+        if (refundAmount > original.TotalAmount)
+            return Result.Failure<ReturnTransaction>(
+                $"Refund amount {refundAmount} exceeds original transaction total {original.TotalAmount}.");
 
+        // ADR-016: refund must use the same payment method as the original transaction
         var returnTx = new ReturnTransaction(
-            tenantId, shopId, originalTransactionId, reason, refundAmount, refundMethod);
-        _returns[returnTx.Id] = returnTx;
+            tenantId, shopId, originalTransactionId, reason, refundAmount, original.PaymentMethod);
+
+        db.ReturnTransactions.Add(returnTx);
+        await db.SaveChangesAsync(ct);
 
         logger.LogInformation(
             "Return initiated: id={Id} originalTx={OriginalId} refundMethod={Method} amount={Amount}",
-            returnTx.Id, originalTransactionId, refundMethod, refundAmount);
+            returnTx.Id, originalTransactionId, original.PaymentMethod, refundAmount);
 
         return Result.Success(returnTx);
     }
 
-    public Task<Result<ReturnTransaction>> CompleteReturnAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ReturnTransaction>> CompleteReturnAsync(Guid id, CancellationToken ct = default)
     {
-        if (!_returns.TryGetValue(id, out var returnTx))
-            return Task.FromResult(Result.Failure<ReturnTransaction>($"Return {id} not found."));
+        var returnTx = await db.ReturnTransactions.FindAsync([id], ct);
+        if (returnTx is null)
+            return Result.Failure<ReturnTransaction>($"Return {id} not found.");
 
         if (returnTx.IsComplete)
-            return Task.FromResult(Result.Failure<ReturnTransaction>($"Return {id} is already complete."));
+            return Result.Failure<ReturnTransaction>($"Return {id} is already complete.");
 
         returnTx.Complete();
+        await db.SaveChangesAsync(ct);
+
         logger.LogInformation("Return completed: id={Id}", id);
-        return Task.FromResult(Result.Success(returnTx));
+        return Result.Success(returnTx);
     }
 }

@@ -1,5 +1,6 @@
 using M2.Domain.Sales;
 using M2.Domain.Sales.Dtos;
+using M2.Infrastructure.Sales;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -14,10 +15,11 @@ public static class SalesModuleEndpoints
             .RequireAuthorization()
             .WithTags("Modules.Sales");
 
-        group.MapPost("/transactions", async (CreateTransactionPayload payload, ISalesService svc) =>
+        group.MapPost("/transactions", async (CreateTransactionPayload payload, ISalesService svc, IIdempotencyContext idempotencyCtx) =>
         {
             if (!Enum.TryParse<PaymentMethod>(payload.PaymentMethod, out var pm))
                 return Results.BadRequest("Invalid payment method");
+            idempotencyCtx.Key = payload.IdempotencyKey;
             var lineItems = payload.LineItems.Select(l =>
                 new LineItemRequest(l.ProductId, l.ProductNameEn, l.ProductNameZht, l.Quantity, l.UnitPrice, l.DiscountAmount));
             var result = await svc.CreateTransactionAsync(

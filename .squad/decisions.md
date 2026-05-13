@@ -865,3 +865,393 @@ For Sprint 1, locale switch is in-memory only. A `StateProvider` wired to `Mater
 2. `ITenantContext` / `IShopContext` service abstractions needed — BFF endpoints must extract TenantId + ShopId from Entra ID JWT claims.
 3. CORS `AllowAll` policy is a dev placeholder — tighten to allowed origins per environment.
 4. Serilog Azure Application Insights sink not configured — add when ACA deployment pipeline is ready.
+
+### 2026-05-13T16:58: User directive
+**By:** Ryan Chung (via Copilot)
+**What:** CI pipeline (S7.1, Azure Pipelines YAML) is pulled forward into Sprint 5. This is no longer a Sprint 7 story. To make room, S5.8 (rate limiting, 2pts) moves to Sprint 6.
+**Why:** User approved — 76 tests exist with no automated gate; CI is a force multiplier for Sprints 5-6 functional work
+
+
+### 2026-05-13T16:58: User directive
+**By:** Ryan Chung (via Copilot)
+**What:** GitHub is the permanent source control and CI/CD platform. No Azure DevOps migration planned. All tooling (gh CLI, GitHub Actions, Squad automation) targets GitHub.
+**Why:** User request — captured for team memory
+
+
+### 2026-05-13T16:58: User directive
+**By:** Ryan Chung (via Copilot)
+**What:** Blazor Server is confirmed for M2PortalBff (management portal). No migration to WASM or React/Angular.
+**Why:** User request — confirmed after Fenster's analysis
+
+
+### 2026-05-13T16:58: User directive
+**By:** Ryan Chung (via Copilot)
+**What:** Sprint 7 (Cloud Readiness) is deferred until the Azure cloud environment is provisioned and ready. Sprints 4–6 focus on functional development only. Sprint 7 is gate-triggered by: Azure subscription provisioned + ACA environment created.
+**Why:** User request — cloud environment not ready; functional completeness is the current priority
+
+
+# Decision: Blazor Server — Keep It, Don't Switch
+
+**Author:** Fenster  
+**Date:** 2026-05-13T16:03:47.338+08:00  
+**Status:** Recommended
+
+---
+
+## What Was Asked
+
+Ryan asked: Is the current Blazor implementation Server or WASM? Which is better for this use case? Should we consider React/Angular instead?
+
+---
+
+## Finding: Current Mode Is Blazor Server
+
+Confirmed by examining `apps/m2-portal/Program.cs`:
+
+```csharp
+builder.Services.AddRazorPages();
+builder.Services.AddServerSideBlazor()
+    .AddMicrosoftIdentityConsentHandler();
+// ...
+app.MapBlazorHub();
+app.MapFallbackToPage("/_Host");
+```
+
+This is the **classic Blazor Server** pattern (pre-.NET 8 unified model). UI diffs are pushed over a SignalR WebSocket. No WASM, no `InteractiveWebAssembly` render mode, no client-side DLL download.
+
+---
+
+## Recommendation: Stay on Blazor Server
+
+**Do not switch to WASM. Do not switch to React or Angular.**
+
+---
+
+## Comparison
+
+### Blazor Server vs WASM for This Use Case
+
+| Factor | Blazor Server ✅ | Blazor WASM |
+|---|---|---|
+| SignalR NotificationBell | Native — runs on the same server process, trivial hub injection | Requires a separate HTTP endpoint to receive push events; WASM can't host a hub |
+| Entra ID / MSAL auth | `AddMicrosoftIdentityWebApp` (OIDC, cookie-based) — already wired in. Clean redirect flows | MSAL.js required; tokens visible in browser storage; CORS config overhead |
+| Startup performance | Instant first paint — server renders HTML | 5–15 MB WASM runtime download on first load; unacceptable for a back-office tool used occasionally |
+| Back-office offline needs | None needed — back-office always has connectivity | The one WASM advantage we simply don't need |
+| State management | In-process scoped services — simple | Manual state sync between client and server |
+| Deployment | Single ASP.NET Core app | Two deployments (API + WASM app) or additional config complexity |
+| Team skill | .NET team, no JS expertise flagged | Requires JS interop comfort for anything non-trivial |
+
+**Verdict on WASM:** Every advantage WASM has (offline, reduced server load at scale) is irrelevant to a back-office manager portal with < 50 concurrent users. Every advantage Server has (SignalR, OIDC, instant startup) is exactly what this app needs.
+
+---
+
+### Blazor Server vs React / Angular
+
+| Factor | Blazor Server ✅ | React / Angular |
+|---|---|---|
+| Switching cost | N/A — already built | Rewrite ALL scaffolded pages. New build pipeline (Node, webpack/vite). New testing stack. |
+| Real-time (SignalR bell) | Trivial — inject hub from DI | Requires a JS SignalR client library + state management wiring |
+| Entra ID auth | Microsoft.Identity.Web — first-party, battle-tested | MSAL.js — works, but more moving parts; separate auth flow per SPA |
+| Team velocity | Team writes C# today | Requires JS/TS fluency the team doesn't have |
+| MudBlazor (already chosen) | Rich Material Design component library, 0 config | Abandon all built components; pick a new library; relearn patterns |
+| Type safety end-to-end | C# DTOs shared directly | DTOs must be manually duplicated or code-gen'd (openapi-typescript etc.) |
+| Genuine React/Angular advantage | None for this case | Better ecosystem for customer-facing SPAs needing SEO, native mobile feel, or large JS teams |
+
+**Verdict on React/Angular:** The pages are stubs, yes — but the architecture, auth, component library, services, and team knowledge all point to Blazor. The cost to switch is real. The benefit is zero for this use case.
+
+---
+
+## Nuance: Should We Upgrade to .NET 8/9 Unified Blazor?
+
+The current setup uses the **legacy Blazor Server** template pattern (MapBlazorHub + _Host.cshtml). .NET 8+ introduced a unified "Blazor Web App" model with per-component render mode control.
+
+**Not urgent** — the classic Server pattern is fully supported in .NET 9. But in a future sprint, migrating to the unified model (`AddRazorComponents().AddInteractiveServerComponents()`) would:
+- Enable mixing static SSR pages with interactive Server components
+- Improve page load for non-interactive pages (reporting, read-only detail views)
+- Align with the current Microsoft Blazor roadmap
+
+Tag this as a tech-debt item for post-Sprint 6.
+
+---
+
+## Final Answer
+
+**Blazor Server. Keep it. It's the right choice.**
+
+SignalR is the deciding factor. The NotificationBell planned for Sprint 6 is trivially easy on Blazor Server and genuinely awkward on anything else. Entra ID auth is already wired. The team is .NET. The pages are already there. There is no credible argument for switching.
+
+
+# Keyser — Architecture Q&A: GitHub Migration, Sprint 7, Multi-tenancy
+**Author:** Keyser (Lead / Architect)
+**Date:** 2026-05-13T16:03:47+08:00
+**Requested by:** Ryan Chung
+
+---
+
+## Q1: GitHub → Azure DevOps Migration — Impact Assessment
+
+### What breaks immediately
+
+#### Squad Agent System (HIGH IMPACT — core workflow disruption)
+The entire Squad automation layer is GitHub-native and **cannot be migrated as-is**:
+
+| Component | GitHub dependency | Azure DevOps equivalent |
+|-----------|------------------|------------------------|
+| `squad-triage.yml` | GitHub Issues labels, `actions/github-script`, `github.rest.issues.*` API | Azure Pipelines + Work Item REST API (different model entirely) |
+| `squad-heartbeat.yml` (Ralph) | GitHub Issues events (`labeled`, `closed`), `GITHUB_TOKEN`, label manipulation | Azure Pipelines has no Issues event trigger; Work Items use different label model |
+| `squad-issue-assign.yml` | `squad:*` labels on Issues, `copilot-swe-agent[bot]` assignment | Azure DevOps Work Items use Tags/Assignees differently; no copilot-swe-agent |
+| `sync-squad-labels.yml` | GitHub Label sync API | Azure DevOps uses Area/Iteration paths, not labels |
+| GitHub Issues Mode | GitHub Issues = Squad inbox | Azure Boards Work Items are functional equivalent but different API/schema |
+
+**Ralph effectively ceases to exist on Azure DevOps.** The triage scripts call `github.rest.issues.*` which is a GitHub REST API — not Azure DevOps REST API. These would need to be rebuilt from scratch against Azure DevOps REST API (`dev.azure.com/{org}/{project}/_apis/wit/workitems`).
+
+**Trade-off:**
+- Cost: Squad's label-driven routing (the "inbox" model) requires a rebuild estimated at ~2–3 days to port to Azure DevOps Work Item queries + pipeline tasks.
+- Benefit: Azure DevOps Work Items are richer than GitHub Issues (parent-child, effort, iteration planning). Could be a net improvement for sprint management.
+- Rejected alternative: keep GitHub for Issues only, use Azure DevOps for code/CI only — splits the team's attention across two platforms and creates sync debt.
+
+#### GitHub-specific features lost
+| Feature | Status after migration |
+|---------|----------------------|
+| `gh` CLI | **Dead** — GitHub-only. No Azure DevOps equivalent in CLI form. |
+| GitHub MCP server | **Dead** — GitHub-specific API integration. |
+| Copilot coding agent (`copilot-swe-agent[bot]`) | **Dead** — GitHub-only feature. Cannot assign to Azure DevOps work items. |
+| `GITHUB_TOKEN` auto-generated | **Dead** — Azure Pipelines uses `System.AccessToken` (different scoping model) |
+| GitHub Actions marketplace | Partially available — most Docker/tool actions still work via open-source; GitHub-specific actions (`actions/github-script`, etc.) do not. |
+| GitHub Container Registry (`ghcr.io`) | Replaced by Azure Container Registry — actually an improvement for ACA deployment. |
+
+#### CI/CD: GitHub Actions → Azure Pipelines rewrite
+The existing squad workflows are the only `.github/workflows/` content (no app CI exists yet per the discovered gaps). **This is actually good news** — there's no sunk cost in GitHub Actions CI to migrate.
+
+S7.1 is not yet written. **If the migration is happening, write S7.1 as an Azure Pipelines YAML from day one** — never write a GitHub Actions CI that then needs to be rewritten.
+
+Key syntax mapping:
+| GitHub Actions | Azure Pipelines |
+|----------------|-----------------|
+| `on: push:` | `trigger:` |
+| `on: pull_request:` | `pr:` |
+| `jobs: > steps:` | `stages: > jobs: > steps:` |
+| `actions/checkout@v4` | Built-in `checkout` step |
+| `actions/setup-dotnet` | `UseDotNet@2` task |
+| `run: dotnet build` | `script: dotnet build` or `DotNetCoreCLI@2` |
+| OWASP ZAP GitHub Action | OWASP ZAP Docker container via `Docker@2` or bash script |
+| `GITHUB_TOKEN` | `$(System.AccessToken)` |
+| Secrets: `secrets.MY_SECRET` | Variable groups or Key Vault linked library |
+
+---
+
+### What changes in the Sprint plan if target is Azure Pipelines
+
+**S7.1 rewrite:** Instead of `.github/workflows/ci.yml`, the deliverable becomes `azure-pipelines.yml`. Same intent (build, test, format check, container image push) but Azure Pipelines YAML syntax. Effort estimate is the same (5 pts) — the work is authoring and testing the pipeline, not the platform syntax.
+
+**S7.9 (OWASP ZAP):** The GitHub Action (`zaproxy/action-baseline`) is not available. Replace with running ZAP as a Docker container task in the pipeline — equivalent capability, slightly more verbose YAML. No impact on story points.
+
+**S7.7 (Pact):** Pact Broker integration works with any CI via the Pact CLI. No platform dependency. No change needed.
+
+**Container registry target:** Push images to Azure Container Registry (`mcr.microsoft.com` style) instead of GHCR. This is actually better — ACR integrates with ACA via Managed Identity, avoiding credential management. Update S7.5 bicep templates to reference ACR.
+
+---
+
+### What Ryan should do NOW vs. AFTER
+
+#### Do NOW (before migration)
+1. **Don't write GitHub Actions CI** for the app (S7.1 target). Write it as Azure Pipelines from the start — saves a rewrite.
+2. **Don't invest further in GitHub Issues as the Squad routing layer.** The current setup (Ralph + squad labels) works fine for now but treat it as temporary. Don't build more workflows on top of it.
+3. **Don't rely on GitHub MCP server** for any permanent tooling integrations. If currently in use, treat it as local-dev-only.
+4. **Don't use GitHub Packages / GHCR** for container images. Target ACR in all future bicep/compose references even before migration.
+5. **Document the Squad issue-routing patterns** (which labels, which member mappings) so they can be rebuilt as Azure Boards work item queries post-migration.
+
+#### Do AFTER (post-migration)
+1. Rebuild Ralph's triage logic as an Azure Pipeline triggered on Work Item state changes (`workItemChanged` event in Azure Pipelines).
+2. Rebuild `sync-squad-labels.yml` equivalent as Area Path + Tag management in Azure Boards.
+3. Replace GitHub Issues Mode with Azure Boards — configure sprint iterations per the sprint plan structure.
+4. Accept the loss of Copilot coding agent — no equivalent exists in Azure DevOps today. Ryan continues using the CLI-based Squad system (Copilot CLI agent) which is IDE-local and not platform-dependent.
+
+---
+
+## Q3: Is Sprint 7 Important Right Now? Can It Be Deferred?
+
+### Story-by-story classification
+
+| Story | Risk if deferred | Verdict |
+|-------|-----------------|---------|
+| S7.1 — CI Pipeline | **HIGH** — regressions ship silently for Sprints 5 & 6 | Pull to Sprint 5 NOW |
+| S7.2 — Dockerfiles + Docker Compose | **MEDIUM** — 4-process dev is painful (4 terminal tabs); onboarding friction | Pull to Sprint 5 or Sprint 6 |
+| S7.3 — OpenTelemetry | LOW — no production environment to observe | Defer to Sprint 7 |
+| S7.4 — Serilog prod config | LOW — no production environment | Defer to Sprint 7 |
+| S7.5 — ACA bicep templates | **ZERO** — cloud not provisioned | Hard defer; block on Azure subscription readiness |
+| S7.6 — Key Vault binding | ZERO — cloud not provisioned | Hard defer |
+| S7.7 — Pact contract tests | MEDIUM — valuable, but BFF→Platform.Api is in-process in tests today; no external consumers | Defer to Sprint 7; can be pulled earlier if Verbal has capacity |
+| S7.8 — k6 performance baselines | LOW — no staging environment to run against | Hard defer |
+| S7.9 — OWASP ZAP | LOW — no running environment to scan | Hard defer |
+| S7.10 — Documentation | LOW | Defer; write runbook when cloud is ready |
+
+### Risk of deferring CI/CD entirely
+
+**This is the highest architectural risk in the plan.** Every sprint that ships without a CI gate means:
+- Regressions that break the build/tests can merge silently
+- The 76 tests (unit + integration) don't run on every PR — they only run when someone remembers to run them locally
+- By Sprint 7, the codebase will have 3–4 more sprints of changes with no regression safety net
+- Fixing a mid-sprint regression without CI is slower and higher stress
+
+The sprint plan itself flagged this: *"S7.1 is Sprint 7's first story; consider pulling it forward to Sprint 5 if capacity allows."* That note should now be a decision, not a suggestion.
+
+### Revised recommendation
+
+**Decision: Split Sprint 7 into "CI-lite now" and "Cloud readiness later".**
+
+#### Pull into Sprint 5 (add to current sprint plan)
+| Story | Owner | Points | Rationale |
+|-------|-------|--------|-----------|
+| CI Pipeline (Azure Pipelines or GitHub Actions) | McManus | 5 | Safety net for all subsequent sprints |
+| Docker Compose for local dev | McManus | 3 | Reduces 4-process dev friction immediately |
+
+Sprint 5 currently has ~37 pts against 35 pt velocity — this is tight. **Options:**
+- Option A: Reduce scope in Sprint 5 (defer S5.8 rate limiting, 2pts, to Sprint 6) and add CI + Docker Compose (+8pts → +6 net). This brings Sprint 5 to ~41pts — still over capacity.
+- Option B: Pull CI into Sprint 5 only (5pts), Docker Compose into Sprint 6 (3pts). Sprint 5 becomes 42pts — too much.
+- **Option C (recommended):** Pull CI pipeline only (5pts) into Sprint 5 as a high-priority add. Defer S5.8 (rate limiting, 2pts) to Sprint 6. Net Sprint 5 change: +3pts → ~40pts. Tight but McManus is competent and CI is a force multiplier for the rest of the sprint.
+
+#### Defer into "Cloud Readiness Sprint" (new name for Sprint 7)
+Run Sprint 7 only when the Azure subscription is provisioned and an environment exists to deploy to. At that point, the sprint makes sense as-is (S7.3–S7.10). Until then, deferring is the rational choice — you can't run k6 against staging that doesn't exist.
+
+**Revised Sprint 7 trigger condition:** Azure subscription provisioned + ACA environment created + team capacity. This sprint should not be scheduled as a time-boxed sprint — it should be scheduled as "ready to deploy" work.
+
+---
+
+## Q4: Multi-tenant → Single-tenant Assessment
+
+### What the code actually does
+
+I inspected the following:
+
+**`ITenanted` (SharedKernel):** A single-property interface: `Guid TenantId { get; }`.
+
+**`BaseEntity` (SharedKernel):** Implements both `ITenanted` and `IShopScoped`. Every domain entity (`Member`, `SalesTransaction`, `Promotion`, `AttendanceRecord`, etc.) extends `BaseEntity` and therefore has `TenantId` as a required property.
+
+**`BaseEntityConfiguration` (Infrastructure):** Configures `TenantId` as a required, non-nullable column on *every EF table*. This is already baked into all 4 existing migrations. Removing it requires schema migrations on all tables.
+
+**Service method signatures:** `tenantId` is threaded explicitly as a parameter through every service method:
+- `MemberService.RegisterAsync(Guid tenantId, Guid shopId, ...)`
+- `AttendanceService.ClockInAsync(Guid tenantId, Guid shopId, ...)`
+- `GoodsReceiptService.CreateNoteAsync(Guid tenantId, Guid shopId, ...)`
+- `SalesService`, `ApprovalService`, `ReportingService`, `GoodsReceiptService` — all the same pattern
+
+**No automatic tenant resolution:** There is no `ITenantContext` middleware, no JWT claim extraction for tenant, no EF global query filter on `TenantId`. The comment in `BaseEntityConfiguration` is explicit: *"Multi-tenancy — application layer is responsible for always setting this."* Tenants are threaded explicitly as method parameters.
+
+**No cross-tenant query risk:** Since there are no EF global query filters for TenantId, every service query that filters by tenant does so explicitly in the Where clause (e.g., `r.TenantId == tenantId`). This is safer than auto-filters that could be accidentally disabled.
+
+### Depth assessment
+
+Multi-tenancy is structurally woven in at two levels:
+1. **Schema level** — `TenantId` column exists on all 22+ entity tables via migrations already run. Removing it requires new migrations.
+2. **Application level** — every service method accepts `tenantId` as a parameter. Removing it means changing ~50+ method signatures.
+
+But critically: **there is no tenant routing middleware, no tenant resolver, no cross-tenant complexity.** The current implementation is essentially "pass TenantId through by hand everywhere." This is the lightest possible multi-tenancy implementation.
+
+### Options
+
+| Option | Effort | Risk | Verdict |
+|--------|--------|------|---------|
+| **A: Remove entirely** | High — remove from BaseEntity, all 22 entity classes, all service signatures, all migration files, all module endpoint parameters. ~3–5 days, high regression risk. | Breaks existing migrations; requires new "undo" migrations that alter every table. | Rejected |
+| **B: Hardcode single tenant constant** | Very low — add `WellKnownTenants.DefaultTenantId` constant to SharedKernel. Pass it everywhere tenantId is currently a parameter. Schema unchanged, migrations unchanged, no service signature changes. ~0.5 day. | Near-zero — purely additive. | **Recommended** |
+| **C: ITenantContext scoped service** | Low-medium — create `ITenantContext` with a scoped implementation that always returns `WellKnownTenants.DefaultTenantId`. Inject it into services instead of passing tenantId as a method parameter. ~1–2 days. | Low — clean but requires touching every service constructor. | Optional upgrade after B |
+
+### Recommendation: Option B — Single-Tenant Constant
+
+**Define in `M2.SharedKernel`:**
+```csharp
+public static class WellKnownTenants
+{
+    /// <summary>
+    /// Single tenant for this deployment. Multi-tenancy is structurally supported
+    /// but not activated — all data belongs to this tenant.
+    /// </summary>
+    public static readonly Guid Default = Guid.Parse("00000000-0000-0000-0000-000000000001");
+}
+```
+
+**Use it everywhere:**
+- Seed data (S4.7) uses `WellKnownTenants.Default` for the single tenant record
+- Module endpoints extract `tenantId` from the request (query string or route) but default to `WellKnownTenants.Default` when not supplied — or simply always use the constant and remove the parameter from endpoint signatures
+- Services keep their `tenantId` parameter signatures unchanged (this preserves the contract if multi-tenancy is ever needed) — callers just pass the constant
+
+**Why this is the right call:**
+- TenantId columns in the database are not a liability — they're just always `00000000-0000-0000-0000-000000000001`. Storage overhead is 16 bytes per row.
+- No migration changes required.
+- If the business ever needs multi-tenancy in the future, the data model already supports it — zero redesign.
+- The work to "activate" multi-tenancy later is ~2 days (add JWT tenant claim extraction + tenant context middleware) rather than ~5 days to rebuild the data model from scratch.
+
+**Effort estimate:** 0.5 day. Assign to McManus in Sprint 4 as part of S4.7 (seed data story — seed data must use the constant anyway).
+
+**Trade-off named:**
+- Cost: TenantId as an unused discriminator on every table; developers must remember to pass `WellKnownTenants.Default` consistently.
+- Benefit: Zero migration risk, preserves optionality, consistent with the existing "multi-store first-class" design (ShopId is actually what matters for this deployment — multiple shops under one tenant is exactly the target).
+
+---
+
+## Summary Decision Register
+
+| # | Decision | Status |
+|---|----------|--------|
+| D-Q1-01 | Do not write GitHub Actions CI (S7.1) — target Azure Pipelines YAML from day one | **Decided** |
+| D-Q1-02 | Do not build further GitHub Issues automation — treat current squad workflows as temporary | **Decided** |
+| D-Q1-03 | Target Azure Container Registry for all container images (not GHCR) | **Decided** |
+| D-Q3-01 | Pull S7.1 (CI pipeline) into Sprint 5; defer S5.8 (rate limiting) to Sprint 6 to make room | **Recommended** |
+| D-Q3-02 | Pull S7.2 (Docker Compose) into Sprint 6 | **Recommended** |
+| D-Q3-03 | Rename Sprint 7 "Cloud Readiness Sprint"; schedule only when Azure subscription is provisioned | **Recommended** |
+| D-Q4-01 | Add `WellKnownTenants.Default` constant to SharedKernel; all code uses this as the single tenant | **Recommended** |
+| D-Q4-02 | Keep TenantId columns in schema — no migrations to remove it | **Decided** |
+
+
+# Decision: Sprint 4–7 Plan & Capacity Allocation
+
+**Author:** Keyser (Lead / Architect)
+**Date:** 2026-05-13
+**Status:** Decided
+**Requested by:** Ryan Chung
+
+---
+
+## Context
+
+Sprint 3 delivered: Platform.Api 4-process extraction, BFF → Platform.Api HTTP wiring, integration test harness refactor (76 tests). Backlog refinement was conducted on 2026-05-13 to produce a 4-sprint plan for remaining MVP work.
+
+## Sprint Goals
+
+| Sprint | Theme | Goal |
+|--------|-------|------|
+| Sprint 4 | Business Logic Completion | Complete core domain service logic (Sales, Approvals, Promotions engine), register Hangfire + SAP Outbox worker, wire SignalR and FCM |
+| Sprint 5 | Auth, Security & Cross-cuts | Implement Authorization module (SAP auth objects), complete JWT/API-key auth on all 4 processes, health checks, rate limiting, API versioning |
+| Sprint 6 | Frontend Depth | Real Blazor portal pages (Promotions, Approvals, Reporting), Flutter POS sales flow, Flutter Promos member/coupon flow |
+| Sprint 7 | CI/CD & Production Readiness | GitHub Actions pipeline, Docker Compose, OpenTelemetry, ACA bicep infra, Pact contracts, k6, OWASP ZAP |
+
+## Capacity Decisions
+
+- **Velocity:** 35–38 story points per sprint (small team, 2-week cadence)
+- **McManus** owns all backend Platform.Api work across Sprints 4–5 and DevOps in Sprint 7
+- **Fenster** front-loaded in Sprint 6 (Blazor + Flutter); blocked on Sprint 5 auth gate
+- **Edie** owns all schema migrations, seeding, and Azure infra bicep
+- **Verbal** contributes testing stories every sprint; escalates to contract + perf + security tests in Sprint 7
+
+## Critical Path Dependencies
+
+1. Sprint 4 (Hangfire + SignalR) must complete before Sprint 6 can test real-time Blazor approval updates
+2. Sprint 5 (AuthZ module + Portal auth) is a hard gate before Sprint 6 frontend work against protected endpoints
+3. Sprint 7 CI/CD should ideally be pulled into Sprint 5 if McManus has capacity after auth wiring — currently the highest-risk deferral
+
+## Gaps Discovered (Critical)
+
+- **No CI/CD pipeline** — regressions ship silently; S7.1 is candidate to pull forward
+- **Authorization module unimplemented** — all endpoints unguarded; Sprint 5 P0
+- **M2PortalBff has no Entra ID JWT auth** — Sprint 5 blocker for Fenster
+- **Hangfire not registered** — SAP Outbox worker never fires; Sprint 4 P1
+- **Blazor portal no MSAL** — Sprint 5 prerequisite for Sprint 6 frontend depth
+
+## Trade-offs Named
+
+| Decision | Cost | Benefit |
+|----------|------|---------|
+| Defer CI/CD to Sprint 7 | 3 sprints without automated regression gate | Keeps McManus focused on domain completion and auth in Sprints 4–5 |
+| Apply API versioning in Sprint 5 | Slight refactor of all BFF `MapGroup` calls | Zero migration cost now; external consumers in Sprint 7+ adopt versioned URLs from day 1 |
+| Authorization before frontend | Delays Blazor/Flutter stories by 1 sprint | Every protected admin endpoint is genuinely guarded when Fenster wires it up |
+

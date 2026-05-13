@@ -9,6 +9,7 @@
 ## Learnings
 
 <!-- Append learnings below -->
+2026-05-13 — Blazor mode assessment: m2-portal is **Blazor Server** (classic pattern — `AddServerSideBlazor()` + `MapBlazorHub()` + `_Host` fallback). Confirmed NOT WASM, not unified .NET 8 render-mode model. Recommendation: stay on Blazor Server. SignalR NotificationBell planned for Sprint 6 is the clincher — it's trivial on Server, awkward on everything else. Entra ID auth already wired via Microsoft.Identity.Web OIDC. MudBlazor already chosen. No credible case for WASM or React/Angular for this back-office use case. Future tech-debt: migrate to .NET 8+ unified Blazor Web App model (AddRazorComponents + AddInteractiveServerComponents) for cleaner SSR/interactive mixing — not urgent, tag for post-Sprint 6.
 2026-05-12 — Sprint 4: Print receipt, Goods Receipt UI (6th tab), Notification inbox, Dashboard, Notification Log pages, MudBlazor warnings fixed. All builds clean. Project feature-complete for UAT.
 2026-05-12 — Sprint 3: POS core flows (cart, payment, receipt, returns, member lookup, attendance), member app promotion/coupon UI, portal promotion management. 5-tab POS nav, inline member QR, DTO naming, camera placeholder. All builds clean.
 

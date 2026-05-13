@@ -2,6 +2,14 @@
 
 ## Core Context
 
+2026-05-13T16:58:43.887+08:00 — Updated docs/sprints/sprint-plan.md per Ryan's directives:
+- Sprint 7 renamed and marked DEFERRED, with explicit gate conditions section
+- Sprints 4–6 left unchanged except S7.1/S7.2 stories annotated with pull-forward notes
+- Status line updated to reflect Sprint 7's deferred/gate-triggered status
+(No inbox entry needed; directives captured in request)
+
+2026-05-13: Pulled CI pipeline story into Sprint 5 (S5.CI), removed S5.8 (rate limiting) from Sprint 5, carried rate limiting to Sprint 6 (S6.RL), updated story tables, points, and goal/summary lines for Sprints 5, 6, and 7 per Ryan's approval. Removed CI pull-forward annotation from S7.1, added Docker Compose pull-forward note to S7.2, and adjusted all sprint point totals accordingly.
+
 - **Project:** A Point of Sale (POS) system for managing transactions, inventory, and sales operations.
 - **Role:** Backend Dev
 - **Joined:** 2026-05-11T02:37:43.912Z

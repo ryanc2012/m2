@@ -1,9 +1,15 @@
 # M2 Sprint Plan — Sprints 4–7
 > **Author:** Keyser (Lead / Architect)
 > **Date:** 2026-05-13
-> **Status:** Approved for execution
+> **Status:** Sprints 4–6 approved. Sprint 7 deferred (gate-triggered).
 
 ---
+
+## Sprint 7 Gate Conditions
+Sprint 7 does NOT begin until:
+- [ ] Azure subscription provisioned
+- [ ] ACA (Azure Container Apps) environment created
+- [ ] Ryan confirms cloud readiness sprint is unblocked
 
 ## Backlog Assessment (as of Sprint 3 completion)
 
@@ -101,8 +107,8 @@
 
 ---
 
-## Sprint 5 — Auth, Security & Infrastructure Cross-cuts
-**Goal:** Lock down the authorization module, complete auth wiring on all 4 processes, harden the platform with health checks, rate limiting, global error handling, and establish the API versioning convention across all BFF endpoints.
+## Sprint 5 — Auth, Security, CI & Infrastructure Cross-cuts
+**Goal:** Lock down the authorization module, complete auth wiring on all 4 processes, harden the platform with health checks, global error handling, establish the API versioning convention across all BFF endpoints, and implement CI pipeline for automated build/test.
 **Duration:** 2 weeks
 
 ### Stories
@@ -115,11 +121,11 @@
 | S5.5 | Add global exception handler middleware (RFC 9457 Problem Details) to all 4 processes; replace any naked `throw` / 500 responses | McManus | 3 | Use `app.UseExceptionHandler`; `ProblemDetails` shape: type, title, status, detail, instance |
 | S5.6 | Apply `/api/v1/` URL prefix to all BFF endpoints (ADR path versioning); update OpenAPI docs and InterModule client base paths | McManus | 3 | Non-breaking in this phase — no external consumers yet; update all BFF `MapGroup` calls |
 | S5.7 | Health check endpoints on all 4 processes (`/health`, `/health/ready`, `/health/live`); include DB connectivity check on Platform.Api | Edie | 3 | Use `AddHealthChecks().AddNpgsql(...)`; BFFs check Platform.Api reachability |
-| S5.8 | Rate limiting on MekaPromosBff: sliding window 60 req/min per IP; fixed window 10 req/min per API key on coupon endpoints | Edie | 2 | ASP.NET Core 9 built-in rate limiter; `RateLimiterOptions` in `AddRateLimiter` |
+| S5.CI | Azure Pipelines CI: build, test, publish — targets Azure DevOps pipeline YAML. Runs dotnet build + dotnet test on all 4 projects. Fail-fast on red tests. | McManus | 5 | Pulled from Sprint 7 — approved by Ryan. No automated gate exists for 76 tests without this. |
 | S5.9 | Blazor portal auth: wire `Microsoft.Identity.Web.UI` + MSAL; `RedirectToLogin.razor` flows to Entra ID; protected routes via `AuthorizeView` | Fenster | 5 | `AddMicrosoftIdentityWebApp` in portal `Program.cs`; `CascadingAuthenticationState` in `App.razor` |
 | S5.10 | Security + auth tests: unit tests for `AuthorizationService` (permit/deny by auth object), integration tests for 401/403 on all protected BFF endpoints, rate limit boundary test | Verbal | 5 | Use `TestAuthHandler` with role claims; test 401 (no token), 403 (wrong auth object), 200 (correct) |
 
-**Sprint Total: 37 pts**
+**Sprint Total: 40 pts**
 
 ### Exit Criteria
 - [ ] `AuthorizationService.CheckAsync` returns Permit/Deny based on user role assignments; cache TTL confirmed via unit test
@@ -136,7 +142,7 @@
 ---
 
 ## Sprint 6 — Frontend Depth: Blazor Portal + Flutter Apps
-**Goal:** Transform stub Blazor pages into working admin screens (Promotions management, Approval workflow, Reporting), and bring Flutter meka-pos and meka-promos apps to a demo-able state with their core user journeys.
+**Goal:** Transform stub Blazor pages into working admin screens (Promotions management, Approval workflow, Reporting), and bring Flutter meka-pos and meka-promos apps to a demo-able state with their core user journeys. Carry over rate limiting from Sprint 5.
 **Duration:** 2 weeks
 
 ### Stories
@@ -152,8 +158,9 @@
 | S6.8 | Flutter meka-promos: Promotions browse, coupon detail with QR code display, coupon redemption status | Fenster | 3 | Calls `CouponEndpoints`; QR via `qr_flutter` package; signed JWT coupon (BE-REC-001 R5) |
 | S6.9 | bUnit tests: Promotions page (render, form submit, validation errors), Approvals page (approve action, SignalR update) | Verbal | 3 | Mock `IPromotionsModuleClient` and `IApprovalsModuleClient`; assert rendered HTML |
 | S6.10 | Flutter widget tests: meka-pos cart + checkout flow, meka-promos coupon display | Verbal | 3 | `flutter_test`; mock HTTP responses; golden tests for QR and receipt screens |
+| S6.RL | Rate limiting on MekaPromosBff (public-facing) — carried from Sprint 5 to make room for CI pipeline. | McManus | 2 | Carried over from Sprint 5. |
 
-**Sprint Total: 36 pts**
+**Sprint Total: 38 pts**
 
 ### Exit Criteria
 - [ ] Blazor portal: authenticated manager can create a promotion, submit for approval, see approval pending in real-time via SignalR
@@ -167,15 +174,24 @@
 
 ---
 
-## Sprint 7 — CI/CD, Observability & Production Readiness
+## Sprint 7 (Cloud Readiness) — DEFERRED
+
+> **Gate:** Sprint 7 does NOT begin until:
+> - [ ] Azure subscription provisioned
+> - [ ] ACA (Azure Container Apps) environment created
+> - [ ] Ryan confirms cloud readiness sprint is unblocked
+
+---
+
+### Sprint 7 — CI/CD, Observability & Production Readiness
 **Goal:** Ship the CI/CD pipeline, containerize all 4 processes for production deployment, wire OpenTelemetry observability, and complete security/performance validation gates — making the platform deployable to Azure Container Apps.
 **Duration:** 2 weeks
 
 ### Stories
 | # | Story | Owner | Points | Notes |
 |---|-------|-------|--------|-------|
-| S7.1 | GitHub Actions CI pipeline: on PR → `dotnet build`, `dotnet test`, format check, OpenAPI diff check; on push to main → build & tag container images | McManus | 5 | `.github/workflows/ci.yml`; matrix build across 4 .NET projects; test results as PR check |
-| S7.2 | Dockerfiles for all 4 .NET processes (multi-stage Alpine builds); Docker Compose for local dev (4 processes + PostgreSQL + Hangfire dashboard) | McManus | 3 | `docker-compose.yml` at repo root; named network; volume for PG data; `depends_on` health checks |
+| S7.1 | GitHub Actions CI pipeline: on PR → `dotnet build`, `dotnet test`, format check, OpenAPI diff check; on push to main → build & tag container images | McManus | 0 | `.github/workflows/ci.yml`; matrix build across 4 .NET projects; test results as PR check |
+| S7.2 | Dockerfiles for all 4 .NET processes (multi-stage Alpine builds); Docker Compose for local dev (4 processes + PostgreSQL + Hangfire dashboard) | McManus | 3 | `docker-compose.yml` at repo root; named network; volume for PG data; `depends_on` health checks ⚠️ Recommended pull-forward to Sprint 6 pending Ryan's approval |
 | S7.3 | OpenTelemetry: traces + metrics wired in all 4 processes → Azure Monitor / Application Insights OTLP exporter | McManus | 3 | `AddOpenTelemetry().WithTracing().WithMetrics()`; activity source per module; use `APPLICATIONINSIGHTS_CONNECTION_STRING` env var |
 | S7.4 | Serilog production config: structured JSON → Azure Application Insights sink; correlation ID enricher; request logging filter (exclude `/health`) | Edie | 2 | `appsettings.Production.json` per process; `Serilog.Sinks.ApplicationInsights` package |
 | S7.5 | Azure Container Apps bicep templates: 4 container apps, managed PostgreSQL Flexible Server, Key Vault, APIM Consumption tier, Managed Identity bindings | Edie | 8 | `infra/` directory; `main.bicep` + module files per resource; parameterized for dev/staging/prod |
@@ -185,7 +201,7 @@
 | S7.9 | OWASP ZAP passive scan in CI on staging deployment; fail build on High-severity findings | Verbal | 3 | ZAP GitHub Action; scan MekaPromosBff (public-facing highest risk) and Platform.Api |
 | S7.10 | Documentation completion: deployment runbook (`docs/DEPLOYMENT.md`), ADR-023 container strategy decision, update DEV-SETUP.md with Docker Compose instructions | McManus | 2 | Runbook covers ACA deploy, rollback, Key Vault rotation, Hangfire dashboard access |
 
-**Sprint Total: 37 pts**
+**Sprint Total: 32 pts**
 
 ### Exit Criteria
 - [ ] CI pipeline runs on every PR; failing tests or build errors block merge

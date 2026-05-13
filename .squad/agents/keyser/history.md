@@ -8,7 +8,48 @@
 
 ## Learnings
 
-<!-- Append learnings below -->
+### 2026-05-13 — GitHub Migration, Sprint 7 Deferral, Multi-tenancy Assessment
+
+**Q1 (GitHub → Azure DevOps):**
+- The entire Squad automation layer (squad-triage.yml, squad-heartbeat.yml, squad-issue-assign.yml) is GitHub-native and requires a full rebuild on Azure DevOps (Work Items API, Azure Pipelines triggers instead of Issues events). Estimated 2–3 days to port Ralph's triage logic.
+- Copilot coding agent (`copilot-swe-agent[bot]`) is GitHub-only and will be lost on migration. The CLI-based Squad system is platform-independent and survives.
+- S7.1 should target Azure Pipelines YAML from day one — writing GitHub Actions CI now wastes a rewrite.
+- ACR is a better container registry target than GHCR for ACA deployment anyway (Managed Identity integration).
+- GitHub MCP server and `gh` CLI are GitHub-specific and should not be dependencies for permanent tooling.
+
+**Q3 (Sprint 7 deferral):**
+- S7.1 (CI pipeline) is the highest-risk deferral in the entire plan — pull it into Sprint 5 by trading S5.8 (rate limiting, 2pts) to Sprint 6. Net Sprint 5: ~40pts.
+- S7.2 (Docker Compose) belongs in Sprint 6 — reduces 4-process dev friction ahead of frontend sprint.
+- S7.3–S7.10 all depend on cloud being provisioned. "Sprint 7" should be retimed as "Cloud Readiness Sprint" triggered by Azure subscription readiness, not calendar. Hard-deferring ACA bicep, Key Vault, k6, ZAP, OpenTelemetry until environment exists is rational.
+
+**Q4 (Multi-tenancy):**
+- Multi-tenancy is structurally present at schema level (TenantId on all 22+ tables via existing migrations) and application level (tenantId parameter on all service methods).
+- NO automatic tenant resolution exists — no ITenantContext middleware, no JWT claim extraction, no EF global query filters on TenantId. It is "pass by hand" everywhere.
+- Recommended: Add `WellKnownTenants.Default` constant to SharedKernel. Zero schema changes, zero migrations, zero service signature changes. ~0.5 day.
+- TenantId columns are not a liability — they're always the same value, 16 bytes per row. Optionality preserved at near-zero cost.
+- ShopId (multi-store) is the genuinely active discriminator for this deployment — multiple shops under one tenant is the actual target.
+
+### 2026-05-13 — Backlog Refinement & Sprint 4–7 Planning
+
+**Backlog state found:**
+- All 8 domain module services are scaffolded and partially implemented; GoodsReceipt is the most complete (has SAP outbox, migration, Flutter screen).
+- 4 EF migrations exist through Sprint 4 schema (GoodsReceipt + SapOutbox); Authorization module schema does not yet exist.
+- Platform.Api 4-process topology is fully extracted and working (Sprint 3 complete).
+- BFF endpoints exist for all major modules but auth enforcement is absent.
+- **Critical gaps discovered:** No CI/CD pipeline (only squad-related workflows), no Docker Compose, Authorization module is unimplemented (IAuthorizationService has no backing service), M2PortalBff has no Entra ID JWT wiring, Hangfire not registered (SAP outbox worker never fires), no Blazor MSAL auth.
+- Blazor portal pages are stubs (App.razor, 5 page skeletons); Flutter apps are minimal (meka-pos: GoodsReceipt only; meka-promos: Notifications only).
+
+**Sprint themes chosen:**
+- Sprint 4: Business Logic Completion — Sales, Approvals, Promotions engine, Hangfire, SignalR, FCM
+- Sprint 5: Auth, Security & Infrastructure Cross-cuts — AuthZ module, JWT wiring, API keys, health checks, rate limiting, versioning
+- Sprint 6: Frontend Depth — Blazor portal real pages, Flutter POS sales flow, Flutter Promos member/coupon flow
+- Sprint 7: CI/CD, Observability & Production Readiness — GitHub Actions, Docker, OpenTelemetry, ACA bicep, Pact, k6, ZAP
+
+**Key capacity decisions:**
+- Authorization guard (Sprint 5) is a hard gate on Sprint 6 frontend work — Fenster cannot build admin pages against unguarded endpoints.
+- CI/CD pipeline (S7.1) is high-risk being deferred to Sprint 7; consider pulling to Sprint 5 if McManus has slack after auth wiring.
+- SAP Outbox (Hangfire, Sprint 4) is a critical fix — GoodsReceiptService explicitly defers to outbox that never processes.
+- API versioning (`/api/v1/`) applied in Sprint 5 while no external consumers exist — zero migration cost.
 
 ## Sprint Planning (2026-05-12)
 

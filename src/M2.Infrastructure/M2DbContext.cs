@@ -1,5 +1,6 @@
 using M2.Domain.Approvals;
 using M2.Domain.Attendance;
+using M2.Domain.Authorization;
 using M2.Domain.GoodsReceipt;
 using M2.Domain.Members;
 using M2.Domain.Notifications;
@@ -51,6 +52,12 @@ public class M2DbContext(DbContextOptions<M2DbContext> options) : DbContext(opti
 
     // SAP Outbox
     public DbSet<SapOutboxEntry> SapOutboxEntries => Set<SapOutboxEntry>();
+
+    // Authorization
+    public DbSet<AuthorizationRole> AuthorizationRoles => Set<AuthorizationRole>();
+    public DbSet<RoleAuthorizationObject> RoleAuthorizationObjects => Set<RoleAuthorizationObject>();
+    public DbSet<ObjectFieldValue> ObjectFieldValues => Set<ObjectFieldValue>();
+    public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

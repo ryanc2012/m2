@@ -41,7 +41,9 @@ M2 is a **4-process** system. All processes must be running for full end-to-end 
 Install the following before starting:
 
 1. **[.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)** — verify with `dotnet --version` (must be `9.x`)
-2. **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** — used to run PostgreSQL locally
+2. **Docker Desktop _or_ [Podman Desktop](https://podman-desktop.io/)** — used to run PostgreSQL locally
+   - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+   - [Podman Desktop](https://podman-desktop.io)
 3. **IDE** (pick one):
    - [Visual Studio 2022 17.9+](https://visualstudio.microsoft.com/) with the **ASP.NET and web development** workload
    - [JetBrains Rider 2024.1+](https://www.jetbrains.com/rider/)
@@ -68,20 +70,30 @@ dotnet restore src/M2.sln
 
 ## 2. Start PostgreSQL
 
-Platform.Api is the only process that connects to the database. Run PostgreSQL locally via Docker:
+Platform.Api is the only process that connects to the database. Run PostgreSQL locally using either Docker Desktop **or** Podman Desktop:
 
-```bash
-docker run -d \
-  --name m2-postgres \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=m2_dev \
-  -p 5432:5432 \
-  postgres:16
+**Option A — Docker Desktop**
+```powershell
+docker run -d --name m2-postgres `
+  -e POSTGRES_PASSWORD=postgres `
+  -e POSTGRES_USER=postgres `
+  -e POSTGRES_DB=m2_dev `
+  -p 5432:5432 postgres:16
 ```
 
+**Option B — Podman Desktop**
+```powershell
+podman run -d --name m2-postgres `
+  -e POSTGRES_PASSWORD=postgres `
+  -e POSTGRES_USER=postgres `
+  -e POSTGRES_DB=m2_dev `
+  -p 5432:5432 postgres:16
+```
+
+> **Note:** Podman Desktop is daemonless — no background service needs to be running. The command syntax is otherwise identical to Docker.
+
 Verify it is running:
-```bash
+```powershell
 docker ps --filter name=m2-postgres
 ```
 

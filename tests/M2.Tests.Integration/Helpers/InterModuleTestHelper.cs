@@ -27,10 +27,21 @@ public static class InterModuleTestHelper
         {
             builder.ConfigureTestServices(services =>
             {
+                var moduleClientDescriptors = services
+                    .Where(d => d.ServiceType.IsInterface &&
+                                d.ServiceType.Name.EndsWith("ModuleClient"))
+                    .ToList();
+
+                // No-op when Platform.InterModule typed clients haven't been wired yet.
+                // Once McManus adds IXxxModuleClient registrations, this branch becomes active
+                // and all inter-module handlers are replaced with the test server's handler.
+                if (moduleClientDescriptors.Count == 0)
+                    return;
+
                 // factory.Server lazily starts the original TestServer (with all test
                 // overrides: in-memory DB, fake auth, etc.) on first access here.
                 var handler = factory.Server.CreateHandler();
-                ReplaceModuleClientHandlers(services, handler);
+                ReplaceModuleClientHandlers(services, handler, moduleClientDescriptors);
             });
         });
     }
@@ -47,14 +58,12 @@ public static class InterModuleTestHelper
     /// When McManus adds a new module client, no changes are needed here — the naming
     /// convention drives automatic discovery.
     /// </summary>
-    private static void ReplaceModuleClientHandlers(IServiceCollection services, HttpMessageHandler handler)
+    private static void ReplaceModuleClientHandlers(
+        IServiceCollection services,
+        HttpMessageHandler handler,
+        IEnumerable<ServiceDescriptor> moduleClientDescriptors)
     {
-        var descriptors = services
-            .Where(d => d.ServiceType.IsInterface &&
-                        d.ServiceType.Name.EndsWith("ModuleClient"))
-            .ToList();
-
-        foreach (var descriptor in descriptors)
+        foreach (var descriptor in moduleClientDescriptors)
         {
             // Re-register the named HttpClient for this typed client, overriding
             // the primary handler so calls route to the in-process TestServer.

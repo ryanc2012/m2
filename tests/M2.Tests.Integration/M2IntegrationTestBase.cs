@@ -8,8 +8,11 @@ namespace M2.Tests.Integration;
 /// Subclasses must declare IClassFixture&lt;TestWebApplicationFactory&gt; (or a derived factory)
 /// to ensure proper test isolation (in-memory DB, fake auth, etc.).
 ///
-/// Wires inter-module loopback automatically via WithInterModuleLoopback() so any
-/// IXxxModuleClient typed HttpClients route through the TestServer rather than the network.
+/// The base class uses the injected factory directly. Call
+/// factory.WithInterModuleLoopback() at the fixture-configuration level (not per-test-instance)
+/// for test classes that validate live module-to-module HTTP flows — i.e., when Platform.InterModule
+/// typed IXxxModuleClient registrations exist. Creating a new derived factory per-test-instance
+/// would start a new TestServer for every test, causing static initializer races.
 /// </summary>
 public abstract class M2IntegrationTestBase : IDisposable
 {
@@ -18,8 +21,8 @@ public abstract class M2IntegrationTestBase : IDisposable
 
     protected M2IntegrationTestBase(WebApplicationFactory<Program> factory)
     {
-        Factory = factory.WithInterModuleLoopback();
-        Client = Factory.CreateClient();
+        Factory = factory;
+        Client = factory.CreateClient();
 
         // Standard internal-call headers so module endpoints recognise requests
         // as coming from within the same process (ADR-001 internal call convention).

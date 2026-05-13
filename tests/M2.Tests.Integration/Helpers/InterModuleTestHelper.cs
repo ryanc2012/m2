@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace M2.Tests.Integration.Helpers;
 
 /// <summary>
-/// Wires the TestWebApplicationFactory's in-process HttpMessageHandler into typed
+/// Wires a WebApplicationFactory's in-process HttpMessageHandler into typed
 /// inter-module clients. Without this, typed HttpClient instances targeting localhost
 /// would attempt real network connections instead of routing through the TestServer.
 /// </summary>
@@ -16,12 +16,13 @@ public static class InterModuleTestHelper
     /// with the factory's in-process handler, so inter-module HTTP calls loop back
     /// through the same TestServer without hitting the network.
     ///
-    /// Must be called on every factory that tests module-to-module flows (ADR-001).
+    /// Works with both <see cref="TestWebApplicationFactory"/> (BFF) and
+    /// <see cref="PlatformWebApplicationFactory"/> (Platform API).
     /// Safe to call when no module clients are registered yet — the method is a no-op
     /// until McManus wires Platform.InterModule typed clients.
     /// </summary>
-    public static WebApplicationFactory<Program> WithInterModuleLoopback(
-        this WebApplicationFactory<Program> factory)
+    public static WebApplicationFactory<TEntryPoint> WithInterModuleLoopback<TEntryPoint>(
+        this WebApplicationFactory<TEntryPoint> factory) where TEntryPoint : class
     {
         return factory.WithWebHostBuilder(builder =>
         {
@@ -74,3 +75,4 @@ public static class InterModuleTestHelper
         }
     }
 }
+

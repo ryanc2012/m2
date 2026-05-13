@@ -12,9 +12,9 @@ namespace M2.Tests.Integration.Modules;
 /// The endpoint requires tenantId, employeeId, and date query params;
 /// 400 is acceptable if the service rejects the request, but 500 is never acceptable.
 /// </summary>
-public class AttendanceModuleTests : M2IntegrationTestBase, IClassFixture<TestWebApplicationFactory>
+public class AttendanceModuleTests : M2PlatformIntegrationTestBase, IClassFixture<PlatformWebApplicationFactory>
 {
-    public AttendanceModuleTests(TestWebApplicationFactory factory) : base(factory) { }
+    public AttendanceModuleTests(PlatformWebApplicationFactory factory) : base(factory) { }
 
     /// <summary>
     /// Contract: GET /modules/attendance/summary must return 200, 400, or 404 — never 401/403/500.

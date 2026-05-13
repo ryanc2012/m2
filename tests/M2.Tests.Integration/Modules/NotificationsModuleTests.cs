@@ -17,9 +17,9 @@ namespace M2.Tests.Integration.Modules;
 ///   - Accept X-Internal-Call / X-Internal-Secret headers for module-to-module calls
 ///   - Reject requests missing those headers with 401 or 403
 /// </summary>
-public class NotificationsModuleTests : M2IntegrationTestBase, IClassFixture<TestWebApplicationFactory>
+public class NotificationsModuleTests : M2PlatformIntegrationTestBase, IClassFixture<PlatformWebApplicationFactory>
 {
-    public NotificationsModuleTests(TestWebApplicationFactory factory) : base(factory) { }
+    public NotificationsModuleTests(PlatformWebApplicationFactory factory) : base(factory) { }
 
     /// <summary>
     /// Contract: GET /modules/notifications/history/member/{memberId} must return 200 or 404

@@ -1,6 +1,5 @@
 using M2.Infrastructure;
 using M2.Infrastructure.InterModule;
-using M2.Infrastructure.Modules;
 using M2.MekaPosBff.Endpoints;
 using M2.SapConnector;
 using M2.SharedKernel;
@@ -63,12 +62,6 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
-    app.MapNotificationsModule();
-    app.MapMembersModule();
-    app.MapPromotionsModule();
-    app.MapSalesModule();
-    app.MapAttendanceModule();
-    app.MapGoodsReceiptModule();
     app.MapSalesEndpoints();
     app.MapAttendanceEndpoints();
     app.MapGoodsReceiptEndpoints();

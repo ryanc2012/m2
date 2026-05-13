@@ -12,9 +12,9 @@ namespace M2.Tests.Integration.Modules;
 /// 404 is the expected result for a random GUID against an empty test DB.
 /// 500 is never acceptable.
 /// </summary>
-public class SalesModuleTests : M2IntegrationTestBase, IClassFixture<TestWebApplicationFactory>
+public class SalesModuleTests : M2PlatformIntegrationTestBase, IClassFixture<PlatformWebApplicationFactory>
 {
-    public SalesModuleTests(TestWebApplicationFactory factory) : base(factory) { }
+    public SalesModuleTests(PlatformWebApplicationFactory factory) : base(factory) { }
 
     /// <summary>
     /// Contract: GET /modules/sales/transactions/{id} must return 200 or 404 — never 401/403/500.

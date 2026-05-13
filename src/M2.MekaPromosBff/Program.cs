@@ -1,6 +1,5 @@
 using M2.Infrastructure;
 using M2.Infrastructure.InterModule;
-using M2.Infrastructure.Modules;
 using M2.MekaPromosBff.Endpoints;
 using M2.SapConnector;
 using M2.SharedKernel;
@@ -63,10 +62,6 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
-    app.MapNotificationsModule();
-    app.MapMembersModule();
-    app.MapPromotionsModule();
-    app.MapApprovalsModule();
     app.MapMemberEndpoints();
     app.MapCouponEndpoints();
     app.MapNotificationHistoryEndpoints();

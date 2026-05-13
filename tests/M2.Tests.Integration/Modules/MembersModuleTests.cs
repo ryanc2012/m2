@@ -12,9 +12,9 @@ namespace M2.Tests.Integration.Modules;
 /// 404 is the expected result for a random GUID against an empty test DB; 200 indicates
 /// a seeded fixture. 500 is never acceptable.
 /// </summary>
-public class MembersModuleTests : M2IntegrationTestBase, IClassFixture<TestWebApplicationFactory>
+public class MembersModuleTests : M2PlatformIntegrationTestBase, IClassFixture<PlatformWebApplicationFactory>
 {
-    public MembersModuleTests(TestWebApplicationFactory factory) : base(factory) { }
+    public MembersModuleTests(PlatformWebApplicationFactory factory) : base(factory) { }
 
     /// <summary>
     /// Contract: GET /modules/members/{id} must return 200 or 404 — never 401/403/500.

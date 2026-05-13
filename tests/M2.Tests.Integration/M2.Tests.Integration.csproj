@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\M2.Infrastructure\M2.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\M2.M2PortalBff\M2.M2PortalBff.csproj" />
     <ProjectReference Include="..\..\src\M2.Domain\M2.Domain.csproj" />
+    <ProjectReference Include="..\..\src\M2.Platform.Api\M2.Platform.Api.csproj" />
   </ItemGroup>
 
 </Project>

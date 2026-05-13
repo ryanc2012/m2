@@ -8,14 +8,20 @@ namespace M2.SharedKernel;
 public sealed class InterModuleOptions
 {
     /// <summary>
-    /// Shared secret for X-Internal-Secret header on inter-module calls.
+    /// Shared secret for X-Internal-Secret header on intra-platform module calls.
     /// Default "internal" is safe for dev/test only.
     /// </summary>
     public string InternalCallSecret { get; set; } = "internal";
 
     /// <summary>
-    /// Base URL for outbound inter-module HTTP calls.
-    /// Defaults to https://localhost:5000 for local development.
+    /// Base URL for outbound HTTP calls from BFFs to the Platform API.
+    /// Defaults to https://localhost:5100 for local development.
     /// </summary>
-    public string BaseUrl { get; set; } = "https://localhost:5000";
+    public string BaseUrl { get; set; } = "https://localhost:5100";
+
+    /// <summary>
+    /// API key BFFs send as X-Api-Key header on calls to the Platform API.
+    /// Default "platform-dev-key" is safe for dev/test only.
+    /// </summary>
+    public string ApiKey { get; set; } = "platform-dev-key";
 }

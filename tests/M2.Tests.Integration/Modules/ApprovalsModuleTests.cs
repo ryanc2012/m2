@@ -16,14 +16,14 @@ namespace M2.Tests.Integration.Modules;
 /// 400 is acceptable if the required approverId query param is omitted.
 /// 500 is never acceptable.
 /// </summary>
-public class ApprovalsModuleTests : M2IntegrationTestBase, IClassFixture<TestWebApplicationFactory>
+public class ApprovalsModuleTests : M2PlatformIntegrationTestBase, IClassFixture<PlatformWebApplicationFactory>
 {
-    private readonly TestWebApplicationFactory _typedFactory;
+    private readonly PlatformWebApplicationFactory _typedFactory;
 
-    public ApprovalsModuleTests(TestWebApplicationFactory factory) : base(factory)
+    public ApprovalsModuleTests(PlatformWebApplicationFactory factory) : base(factory)
     {
         _typedFactory = factory;
-        // The /modules/approvals/pending endpoint delegates to IApprovalService (mocked in TestWebApplicationFactory).
+        // The /modules/approvals/pending endpoint delegates to IApprovalService (mocked in PlatformWebApplicationFactory).
         // Without a setup, Moq returns null for reference types which causes a NullReferenceException inside the
         // endpoint handler. Wire up an empty-list response so the endpoint can complete normally.
         _typedFactory.ApprovalServiceMock

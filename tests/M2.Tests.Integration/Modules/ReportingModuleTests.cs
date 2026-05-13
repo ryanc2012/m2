@@ -15,9 +15,9 @@ namespace M2.Tests.Integration.Modules;
 /// Note: the reporting endpoint is /sales/daily (not /sales/summary); summary is the shape
 /// of the response payload, not the route segment.
 /// </summary>
-public class ReportingModuleTests : M2IntegrationTestBase, IClassFixture<TestWebApplicationFactory>
+public class ReportingModuleTests : M2PlatformIntegrationTestBase, IClassFixture<PlatformWebApplicationFactory>
 {
-    public ReportingModuleTests(TestWebApplicationFactory factory) : base(factory) { }
+    public ReportingModuleTests(PlatformWebApplicationFactory factory) : base(factory) { }
 
     /// <summary>
     /// Contract: GET /modules/reporting/sales/daily must return 200, 400, or 404 — never 401/403/500.

@@ -1,4 +1,5 @@
-using M2.Domain.GoodsReceipt;
+using M2.Domain.GoodsReceipt.Dtos;
+using M2.Infrastructure.InterModule.Interfaces;
 
 namespace M2.M2PortalBff.Endpoints;
 
@@ -10,12 +11,14 @@ public static class GoodsReceiptEndpoints
 
         group.MapPost("/", async (
             CreateGrnRequest req,
-            IGoodsReceiptService svc) =>
+            IGoodsReceiptModuleClient client) =>
         {
-            var lineItems = req.LineItems.Select(l =>
-                new GoodsReceiptLineItemRequest(l.ProductCode, l.ProductNameEn, l.ProductNameZht,
-                    l.ExpectedQty, l.UnitOfMeasure));
-            var result = await svc.CreateAsync(req.TenantId, req.ShopId, req.SapDeliveryNoteNumber, lineItems);
+            var payload = new CreateGoodsReceiptPayload(
+                req.TenantId, req.ShopId, req.SapDeliveryNoteNumber,
+                req.LineItems.Select(l =>
+                    new GrnLineItemPayload(l.ProductCode, l.ProductNameEn, l.ProductNameZht,
+                        l.ExpectedQty, l.UnitOfMeasure)).ToList());
+            var result = await client.CreateAsync(payload);
             return result.IsSuccess
                 ? Results.Created($"/goods-receipts/{result.Value!.Id}", result.Value)
                 : Results.BadRequest(result.Error);
@@ -23,9 +26,9 @@ public static class GoodsReceiptEndpoints
 
         group.MapGet("/{id:guid}", async (
             Guid id,
-            IGoodsReceiptService svc) =>
+            IGoodsReceiptModuleClient client) =>
         {
-            var result = await svc.GetByIdAsync(id);
+            var result = await client.GetByIdAsync(id);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
         });
 
@@ -34,34 +37,35 @@ public static class GoodsReceiptEndpoints
             Guid shopId,
             int page,
             int pageSize,
-            IGoodsReceiptService svc) =>
+            IGoodsReceiptModuleClient client) =>
         {
-            var result = await svc.ListByShopAsync(tenantId, shopId, page, pageSize);
+            var result = await client.ListByShopAsync(tenantId, shopId, page, pageSize);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
         group.MapPost("/{id:guid}/confirm", async (
             Guid id,
-            IGoodsReceiptService svc) =>
+            IGoodsReceiptModuleClient client) =>
         {
-            var result = await svc.ConfirmAsync(id);
+            var result = await client.ConfirmAsync(id);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
         group.MapPost("/{id:guid}/discrepancy", async (
             Guid id,
             RecordDiscrepancyRequest req,
-            IGoodsReceiptService svc) =>
+            IGoodsReceiptModuleClient client) =>
         {
-            var result = await svc.RecordDiscrepancyAsync(id, req.LineItemId, req.ReceivedQty, req.DiscrepancyNote);
+            var payload = new RecordDiscrepancyPayload(req.LineItemId, req.ReceivedQty, req.DiscrepancyNote);
+            var result = await client.RecordDiscrepancyAsync(id, payload);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
         group.MapPost("/{id:guid}/post-to-sap", async (
             Guid id,
-            IGoodsReceiptService svc) =>
+            IGoodsReceiptModuleClient client) =>
         {
-            var result = await svc.PostToSapAsync(id);
+            var result = await client.PostToSapAsync(id);
             return result.IsSuccess ? Results.Accepted() : Results.BadRequest(result.Error);
         });
 

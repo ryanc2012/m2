@@ -1,5 +1,5 @@
-using M2.Domain.Approvals;
-using M2.SharedKernel;
+using M2.Domain.Approvals.Dtos;
+using M2.Infrastructure.InterModule.Interfaces;
 
 namespace M2.M2PortalBff.Endpoints;
 
@@ -11,9 +11,10 @@ public static class ApprovalEndpoints
 
         group.MapPost("/requests", async (
             CreateApprovalRequestRequest req,
-            IApprovalService svc) =>
+            IApprovalsModuleClient client) =>
         {
-            var result = await svc.CreateRequestAsync(req.TenantId, req.ShopId, req.EntityType, req.EntityId);
+            var payload = new CreateApprovalPayload(req.TenantId, req.ShopId, req.EntityType, req.EntityId);
+            var result = await client.CreateRequestAsync(payload);
             return result.IsSuccess
                 ? Results.Created($"/approvals/requests/{result.Value!.Id}", result.Value)
                 : Results.BadRequest(result.Error);
@@ -21,35 +22,37 @@ public static class ApprovalEndpoints
 
         group.MapGet("/requests/{id:guid}", async (
             Guid id,
-            IApprovalService svc) =>
+            IApprovalsModuleClient client) =>
         {
-            var result = await svc.GetRequestAsync(id);
+            var result = await client.GetRequestAsync(id);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
         });
 
         group.MapGet("/pending", async (
             string approverId,
-            IApprovalService svc) =>
+            IApprovalsModuleClient client) =>
         {
-            var result = await svc.GetPendingRequestsForApproverAsync(approverId);
+            var result = await client.GetPendingRequestsForApproverAsync(approverId);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
         group.MapPost("/requests/{id:guid}/approve", async (
             Guid id,
             ApproveRejectRequest req,
-            IApprovalService svc) =>
+            IApprovalsModuleClient client) =>
         {
-            var result = await svc.ApproveStepAsync(id, req.ApproverId, req.Comment);
+            var payload = new ApproveRejectPayload(req.ApproverId, req.Comment);
+            var result = await client.ApproveStepAsync(id, payload);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
         group.MapPost("/requests/{id:guid}/reject", async (
             Guid id,
             ApproveRejectRequest req,
-            IApprovalService svc) =>
+            IApprovalsModuleClient client) =>
         {
-            var result = await svc.RejectStepAsync(id, req.ApproverId, req.Comment);
+            var payload = new ApproveRejectPayload(req.ApproverId, req.Comment);
+            var result = await client.RejectStepAsync(id, payload);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 

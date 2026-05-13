@@ -64,6 +64,9 @@ try
 
     app.MapHealthChecks("/health");
     app.MapNotificationsModule();
+    app.MapMembersModule();
+    app.MapPromotionsModule();
+    app.MapApprovalsModule();
     app.MapMemberEndpoints();
     app.MapCouponEndpoints();
     app.MapNotificationHistoryEndpoints();

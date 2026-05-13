@@ -1,4 +1,6 @@
 using M2.Domain.Attendance;
+using M2.Domain.Attendance.Dtos;
+using M2.Infrastructure.InterModule.Interfaces;
 
 namespace M2.MekaPosBff.Endpoints;
 
@@ -10,9 +12,10 @@ public static class AttendanceEndpoints
 
         group.MapPost("/clock-in", async (
             ClockInRequest req,
-            IAttendanceService svc) =>
+            IAttendanceModuleClient client) =>
         {
-            var result = await svc.ClockInAsync(req.TenantId, req.ShopId, req.EmployeeId, req.Source, req.Notes);
+            var payload = new ClockInPayload(req.TenantId, req.ShopId, req.EmployeeId, req.Source.ToString(), req.Notes);
+            var result = await client.ClockInAsync(payload);
             return result.IsSuccess
                 ? Results.Created($"/attendance/records/{result.Value!.Id}", result.Value)
                 : Results.BadRequest(result.Error);
@@ -20,9 +23,10 @@ public static class AttendanceEndpoints
 
         group.MapPost("/clock-out", async (
             ClockOutRequest req,
-            IAttendanceService svc) =>
+            IAttendanceModuleClient client) =>
         {
-            var result = await svc.ClockOutAsync(req.TenantId, req.EmployeeId, req.Notes);
+            var payload = new ClockOutPayload(req.TenantId, req.EmployeeId, req.Notes);
+            var result = await client.ClockOutAsync(payload);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
@@ -31,9 +35,9 @@ public static class AttendanceEndpoints
             string employeeId,
             DateTimeOffset? from,
             DateTimeOffset? to,
-            IAttendanceService svc) =>
+            IAttendanceModuleClient client) =>
         {
-            var result = await svc.GetRecordsForEmployeeAsync(tenantId, employeeId, from, to);
+            var result = await client.GetRecordsForEmployeeAsync(tenantId, employeeId, from, to);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
@@ -41,9 +45,9 @@ public static class AttendanceEndpoints
             Guid tenantId,
             string employeeId,
             DateOnly date,
-            IAttendanceService svc) =>
+            IAttendanceModuleClient client) =>
         {
-            var result = await svc.GetDailySummaryAsync(tenantId, employeeId, date);
+            var result = await client.GetDailySummaryAsync(tenantId, employeeId, date);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 

@@ -1,4 +1,6 @@
 using M2.Domain.Sales;
+using M2.Domain.Sales.Dtos;
+using M2.Infrastructure.InterModule.Interfaces;
 
 namespace M2.MekaPosBff.Endpoints;
 
@@ -10,14 +12,15 @@ public static class SalesEndpoints
 
         group.MapPost("/transactions", async (
             CreateTransactionRequest req,
-            ISalesService svc) =>
+            ISalesModuleClient client) =>
         {
-            var lineItems = req.LineItems.Select(l =>
-                new LineItemRequest(l.ProductId, l.ProductNameEn, l.ProductNameZht,
-                    l.Quantity, l.UnitPrice, l.DiscountAmount));
-
-            var result = await svc.CreateTransactionAsync(
-                req.TenantId, req.ShopId, req.MemberId, req.CashierId, req.PaymentMethod, lineItems);
+            var payload = new CreateTransactionPayload(
+                req.TenantId, req.ShopId, req.MemberId, req.CashierId,
+                req.PaymentMethod.ToString(),
+                req.LineItems.Select(l => new LineItemPayload(
+                    l.ProductId, l.ProductNameEn, l.ProductNameZht,
+                    l.Quantity, l.UnitPrice, l.DiscountAmount)).ToList());
+            var result = await client.CreateTransactionAsync(payload);
             return result.IsSuccess
                 ? Results.Created($"/sales/transactions/{result.Value!.Id}", result.Value)
                 : Results.BadRequest(result.Error);
@@ -25,25 +28,25 @@ public static class SalesEndpoints
 
         group.MapPost("/transactions/{id:guid}/complete", async (
             Guid id,
-            ISalesService svc) =>
+            ISalesModuleClient client) =>
         {
-            var result = await svc.CompleteTransactionAsync(id);
+            var result = await client.CompleteTransactionAsync(id);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
         group.MapPost("/transactions/{id:guid}/void", async (
             Guid id,
-            ISalesService svc) =>
+            ISalesModuleClient client) =>
         {
-            var result = await svc.VoidTransactionAsync(id);
+            var result = await client.VoidTransactionAsync(id);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
         group.MapGet("/transactions/{id:guid}", async (
             Guid id,
-            ISalesService svc) =>
+            ISalesModuleClient client) =>
         {
-            var result = await svc.GetByIdAsync(id);
+            var result = await client.GetTransactionByIdAsync(id);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
         });
 
@@ -51,10 +54,11 @@ public static class SalesEndpoints
 
         returnGroup.MapPost("/", async (
             InitiateReturnRequest req,
-            IReturnService svc) =>
+            ISalesModuleClient client) =>
         {
-            var result = await svc.InitiateReturnAsync(
+            var payload = new InitiateReturnPayload(
                 req.TenantId, req.ShopId, req.OriginalTransactionId, req.Reason, req.RefundAmount);
+            var result = await client.InitiateReturnAsync(payload);
             return result.IsSuccess
                 ? Results.Created($"/sales/returns/{result.Value!.Id}", result.Value)
                 : Results.BadRequest(result.Error);
@@ -62,9 +66,9 @@ public static class SalesEndpoints
 
         returnGroup.MapPost("/{id:guid}/complete", async (
             Guid id,
-            IReturnService svc) =>
+            ISalesModuleClient client) =>
         {
-            var result = await svc.CompleteReturnAsync(id);
+            var result = await client.CompleteReturnAsync(id);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 

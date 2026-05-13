@@ -1,4 +1,6 @@
 using M2.Domain.Attendance;
+using M2.Domain.Attendance.Dtos;
+using M2.Infrastructure.InterModule.Interfaces;
 
 namespace M2.M2PortalBff.Endpoints;
 
@@ -13,9 +15,9 @@ public static class AttendanceAdminEndpoints
             string employeeId,
             DateTimeOffset? from,
             DateTimeOffset? to,
-            IAttendanceService svc) =>
+            IAttendanceModuleClient client) =>
         {
-            var result = await svc.GetRecordsForEmployeeAsync(tenantId, employeeId, from, to);
+            var result = await client.GetRecordsForEmployeeAsync(tenantId, employeeId, from, to);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
@@ -23,9 +25,9 @@ public static class AttendanceAdminEndpoints
             Guid tenantId,
             string employeeId,
             DateOnly date,
-            IAttendanceService svc) =>
+            IAttendanceModuleClient client) =>
         {
-            var result = await svc.GetDailySummaryAsync(tenantId, employeeId, date);
+            var result = await client.GetDailySummaryAsync(tenantId, employeeId, date);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 

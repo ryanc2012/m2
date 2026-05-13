@@ -1,5 +1,5 @@
-using M2.Domain.Members;
-using M2.SharedKernel;
+using M2.Domain.Members.Dtos;
+using M2.Infrastructure.InterModule.Interfaces;
 
 namespace M2.M2PortalBff.Endpoints;
 
@@ -10,26 +10,26 @@ public static class MemberAdminEndpoints
     {
         var group = app.MapGroup("/members").WithTags("Members");
 
-        group.MapGet("/{id:guid}", async (Guid id, IMemberService svc) =>
+        group.MapGet("/{id:guid}", async (Guid id, IMembersModuleClient client) =>
         {
-            var result = await svc.GetByIdAsync(id);
+            var result = await client.GetByIdAsync(id);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
         });
 
-        group.MapGet("/qr/{qrCode}", async (string qrCode, IMemberService svc) =>
+        group.MapGet("/qr/{qrCode}", async (string qrCode, IMembersModuleClient client) =>
         {
-            var result = await svc.GetByQrCodeAsync(qrCode);
+            var result = await client.GetByQrCodeAsync(qrCode);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
         });
 
         group.MapPut("/{id:guid}", async (
             Guid id,
             UpdateMemberRequest req,
-            IMemberService svc) =>
+            IMembersModuleClient client) =>
         {
-            var firstName = BilingualText.From(req.FirstNameEn, req.FirstNameZht);
-            var lastName = BilingualText.From(req.LastNameEn, req.LastNameZht);
-            var result = await svc.UpdateProfileAsync(id, firstName, lastName, req.Email);
+            var payload = new UpdateMemberProfilePayload(
+                req.FirstNameEn, req.FirstNameZht, req.LastNameEn, req.LastNameZht, req.Email);
+            var result = await client.UpdateProfileAsync(id, payload);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 

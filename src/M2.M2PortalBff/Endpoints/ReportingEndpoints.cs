@@ -1,4 +1,4 @@
-using M2.Domain.Reporting;
+using M2.Infrastructure.InterModule.Interfaces;
 
 namespace M2.M2PortalBff.Endpoints;
 
@@ -12,9 +12,9 @@ public static class ReportingEndpoints
             Guid tenantId,
             Guid shopId,
             DateOnly date,
-            IReportingService svc) =>
+            IReportingModuleClient client) =>
         {
-            var result = await svc.GetDailySalesSummaryAsync(tenantId, shopId, date);
+            var result = await client.GetDailySalesSummaryAsync(tenantId, shopId, date);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
@@ -22,9 +22,9 @@ public static class ReportingEndpoints
             Guid tenantId,
             Guid shopId,
             DateOnly date,
-            IReportingService svc) =>
+            IReportingModuleClient client) =>
         {
-            var result = await svc.GetAttendanceSummaryAsync(tenantId, shopId, date);
+            var result = await client.GetAttendanceSummaryAsync(tenantId, shopId, date);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
 
@@ -32,9 +32,9 @@ public static class ReportingEndpoints
             Guid tenantId,
             Guid shopId,
             Guid promotionId,
-            IReportingService svc) =>
+            IReportingModuleClient client) =>
         {
-            var result = await svc.GetPromotionPerformanceAsync(tenantId, shopId, promotionId);
+            var result = await client.GetPromotionPerformanceAsync(tenantId, shopId, promotionId);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
         });
 

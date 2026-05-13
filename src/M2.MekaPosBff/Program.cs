@@ -1,7 +1,9 @@
 using M2.Infrastructure;
+using M2.Infrastructure.InterModule;
 using M2.Infrastructure.Modules;
 using M2.MekaPosBff.Endpoints;
 using M2.SapConnector;
+using M2.SharedKernel;
 using M2.SharedKernel.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
@@ -32,6 +34,8 @@ try
             policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
     builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddInterModuleClients(builder.Configuration);
+    builder.Services.AddInterModuleAuth(builder.Configuration);
     builder.Services.AddSapConnector(builder.Configuration);
 
     builder.Services.AddHealthChecks();
@@ -60,9 +64,16 @@ try
 
     app.MapHealthChecks("/health");
     app.MapNotificationsModule();
+    app.MapMembersModule();
+    app.MapPromotionsModule();
+    app.MapSalesModule();
+    app.MapAttendanceModule();
+    app.MapGoodsReceiptModule();
     app.MapSalesEndpoints();
     app.MapAttendanceEndpoints();
     app.MapGoodsReceiptEndpoints();
+
+    app.Run();
 }
 catch (Exception ex)
 {

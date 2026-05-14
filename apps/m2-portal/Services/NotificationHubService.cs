@@ -8,7 +8,7 @@ public record NotificationEntry(string Title, DateTimeOffset ReceivedAt)
     public bool IsRead { get; set; }
 }
 
-public class NotificationHubService(IConfiguration config, ITokenAcquisition tokenAcquisition) : IAsyncDisposable
+public class NotificationHubService(IConfiguration config, ITokenAcquisition tokenAcquisition) : INotificationHubService
 {
     private HubConnection? _connection;
 

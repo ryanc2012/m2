@@ -29,7 +29,7 @@ builder.Services.AddServerSideBlazor()
 builder.Services.AddMudServices();
 
 builder.Services.AddTransient<M2Portal.Services.PortalBffTokenHandler>();
-builder.Services.AddScoped<M2Portal.Services.NotificationHubService>();
+builder.Services.AddScoped<M2Portal.Services.INotificationHubService, M2Portal.Services.NotificationHubService>();
 
 // Approval service — calls M2PortalBff (base URL configured in appsettings)
 builder.Services.AddHttpClient<M2Portal.Services.ApprovalService>(client =>

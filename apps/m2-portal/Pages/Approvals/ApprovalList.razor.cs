@@ -8,7 +8,7 @@ public partial class ApprovalList : IAsyncDisposable
 {
     [Inject] private ApprovalService ApprovalSvc { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
-    [Inject] private NotificationHubService HubService { get; set; } = null!;
+    [Inject] private INotificationHubService HubService { get; set; } = null!;
 
     private List<ApprovalRequest> _approvals = [];
     private bool _loading = true;

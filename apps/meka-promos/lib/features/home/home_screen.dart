@@ -6,7 +6,7 @@ import '../../features/profile/profile_service.dart';
 import '../../features/promotions/promotions_screen.dart';
 import '../../features/coupons/coupons_screen.dart';
 import '../../screens/notifications_screen.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:meka_promos/core/l10n/app_localizations.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});

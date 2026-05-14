@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:meka_promos/core/l10n/app_localizations.dart';
 import '../registration/registration_service.dart';
 import '../profile/profile_service.dart';
 

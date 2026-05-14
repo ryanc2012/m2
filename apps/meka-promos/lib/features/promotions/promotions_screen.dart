@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:meka_promos/core/l10n/app_localizations.dart';
 
 import 'promotions_service.dart';
 import 'promotion_detail_screen.dart';

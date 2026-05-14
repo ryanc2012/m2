@@ -6,8 +6,11 @@ using MudBlazor.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Entra ID authentication via Microsoft.Identity.Web (ADR-007)
-builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
+builder.Services
+    .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
+    .EnableTokenAcquisitionToCallDownstreamApi()
+    .AddInMemoryTokenCaches();
 
 builder.Services.AddControllersWithViews()
     .AddMicrosoftIdentityUI();
@@ -25,33 +28,36 @@ builder.Services.AddServerSideBlazor()
 // MudBlazor component library
 builder.Services.AddMudServices();
 
+builder.Services.AddTransient<M2Portal.Services.PortalBffTokenHandler>();
+builder.Services.AddScoped<M2Portal.Services.NotificationHubService>();
+
 // Approval service — calls M2PortalBff (base URL configured in appsettings)
 builder.Services.AddHttpClient<M2Portal.Services.ApprovalService>(client =>
 {
     client.BaseAddress = new Uri(
-        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
-});
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5002");
+}).AddHttpMessageHandler<M2Portal.Services.PortalBffTokenHandler>();
 
 // Promotion service — calls M2PortalBff (same base URL)
 builder.Services.AddHttpClient<M2Portal.Services.PromotionService>(client =>
 {
     client.BaseAddress = new Uri(
-        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
-});
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5002");
+}).AddHttpMessageHandler<M2Portal.Services.PortalBffTokenHandler>();
 
 // Goods Receipt service
 builder.Services.AddHttpClient<M2Portal.Services.GoodsReceiptService>(client =>
 {
     client.BaseAddress = new Uri(
-        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
-});
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5002");
+}).AddHttpMessageHandler<M2Portal.Services.PortalBffTokenHandler>();
 
 // Dashboard service
 builder.Services.AddHttpClient<M2Portal.Services.DashboardService>(client =>
 {
     client.BaseAddress = new Uri(
-        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
-});
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5002");
+}).AddHttpMessageHandler<M2Portal.Services.PortalBffTokenHandler>();
 builder.Services.AddScoped<M2Portal.Services.IDashboardService>(sp =>
     sp.GetRequiredService<M2Portal.Services.DashboardService>());
 
@@ -59,8 +65,8 @@ builder.Services.AddScoped<M2Portal.Services.IDashboardService>(sp =>
 builder.Services.AddHttpClient<M2Portal.Services.NotificationLogService>(client =>
 {
     client.BaseAddress = new Uri(
-        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5001");
-});
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5002");
+}).AddHttpMessageHandler<M2Portal.Services.PortalBffTokenHandler>();
 
 var app = builder.Build();
 

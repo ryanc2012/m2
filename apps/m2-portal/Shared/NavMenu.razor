@@ -38,6 +38,13 @@
     <MudNavLink Href="settings" Icon="@Icons.Material.Filled.Settings">
         Settings
     </MudNavLink>
+    <MudDivider Class="my-2" />
+    <AuthorizeView>
+        <Authorized>
+            <MudText Typo="Typo.body2" Class="px-4 py-1">@context.User.Identity?.Name</MudText>
+            <MudNavLink Href="MicrosoftIdentity/Account/SignOut" Icon="@Icons.Material.Filled.Logout">Sign out</MudNavLink>
+        </Authorized>
+    </AuthorizeView>
 </MudNavMenu>
 
 @code {

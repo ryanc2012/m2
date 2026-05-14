@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/auth_service.dart';
 import 'attendance_service.dart';
 
 class ClockInOutScreen extends ConsumerStatefulWidget {
@@ -11,41 +12,36 @@ class ClockInOutScreen extends ConsumerStatefulWidget {
 }
 
 class _ClockInOutScreenState extends ConsumerState<ClockInOutScreen> {
-  final _empCtrl = TextEditingController();
-  AttendanceRecord? _lastRecord;
+  AttendanceStatus? _status;
   bool _loading = false;
   bool _clocking = false;
   String? _error;
   String? _successMessage;
 
   @override
-  void dispose() {
-    _empCtrl.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadStatus());
   }
 
-  Future<void> _loadLastRecord() async {
-    final id = _empCtrl.text.trim();
-    if (id.isEmpty) return;
+  String get _staffId =>
+      ref.read(authStateProvider).value?.accountId ?? 'unknown';
+
+  Future<void> _loadStatus() async {
     setState(() => _loading = true);
     try {
       final service = ref.read(attendanceServiceProvider);
-      final record = await service.getLastRecord(id);
-      setState(() => _lastRecord = record);
+      final status = await service.getStatus(_staffId);
+      setState(() => _status = status);
     } catch (_) {
       // No record yet — not an error
-      setState(() => _lastRecord = null);
+      setState(() => _status = null);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _clockIn() async {
-    final id = _empCtrl.text.trim();
-    if (id.isEmpty) {
-      setState(() => _error = '請輸入員工 ID');
-      return;
-    }
     setState(() {
       _clocking = true;
       _error = null;
@@ -53,9 +49,12 @@ class _ClockInOutScreenState extends ConsumerState<ClockInOutScreen> {
     });
     try {
       final service = ref.read(attendanceServiceProvider);
-      final record = await service.clockIn(id);
+      final record = await service.clockIn(_staffId);
       setState(() {
-        _lastRecord = record;
+        _status = AttendanceStatus(
+          isClockedIn: true,
+          lastClockIn: record.timestamp,
+        );
         _successMessage = '上班打卡成功 — ${_formatTime(record.timestamp)}';
       });
     } catch (e) {
@@ -66,11 +65,6 @@ class _ClockInOutScreenState extends ConsumerState<ClockInOutScreen> {
   }
 
   Future<void> _clockOut() async {
-    final id = _empCtrl.text.trim();
-    if (id.isEmpty) {
-      setState(() => _error = '請輸入員工 ID');
-      return;
-    }
     setState(() {
       _clocking = true;
       _error = null;
@@ -78,10 +72,12 @@ class _ClockInOutScreenState extends ConsumerState<ClockInOutScreen> {
     });
     try {
       final service = ref.read(attendanceServiceProvider);
-      final record = await service.clockOut(id);
+      final record = await service.clockOut(_staffId);
       setState(() {
-        _lastRecord = record;
-        _successMessage = '下班打卡成功 — ${_formatTime(record.timestamp)}';
+        _status = AttendanceStatus(isClockedIn: false);
+        _successMessage = record.hoursWorkedToday != null
+            ? '下班打卡成功 — ${_formatTime(record.timestamp)}｜今日工時：${record.hoursWorkedToday!.toStringAsFixed(1)}h'
+            : '下班打卡成功 — ${_formatTime(record.timestamp)}';
       });
     } catch (e) {
       setState(() => _error = '打卡失敗，請重試。');
@@ -106,43 +102,30 @@ class _ClockInOutScreenState extends ConsumerState<ClockInOutScreen> {
           Text('考勤打卡', style: theme.textTheme.titleLarge),
           const SizedBox(height: 24),
 
-          // Employee ID input
-          TextField(
-            controller: _empCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '員工 ID',
-              prefixIcon: Icon(Icons.badge_outlined),
-              border: OutlineInputBorder(),
-            ),
-            onSubmitted: (_) => _loadLastRecord(),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: _loading ? null : _loadLastRecord,
-            child: const Text('查詢上次打卡記錄'),
-          ),
-
-          // Last record display
-          if (_lastRecord != null) ...[
-            const SizedBox(height: 12),
+          // Current status card
+          if (_loading)
+            const Center(child: CircularProgressIndicator())
+          else if (_status != null)
             Card(
               child: ListTile(
                 leading: Icon(
-                  _lastRecord!.type == AttendanceType.clockIn
-                      ? Icons.login
-                      : Icons.logout,
-                  color: _lastRecord!.type == AttendanceType.clockIn
+                  _status!.isClockedIn ? Icons.login : Icons.logout,
+                  color: _status!.isClockedIn
                       ? theme.colorScheme.primary
                       : theme.colorScheme.secondary,
                 ),
                 title: Text(
-                  _lastRecord!.type == AttendanceType.clockIn ? '上班打卡' : '下班打卡',
+                  _status!.isClockedIn ? '目前狀態：已上班' : '目前狀態：未上班',
                 ),
-                subtitle: Text(_formatTime(_lastRecord!.timestamp)),
+                subtitle: _status!.lastClockIn != null
+                    ? Text('上班時間：${_formatTime(_status!.lastClockIn!)}')
+                    : null,
+                trailing: TextButton(
+                  onPressed: _loading ? null : _loadStatus,
+                  child: const Text('重新整理'),
+                ),
               ),
             ),
-          ],
 
           if (_error != null) ...[
             const SizedBox(height: 12),

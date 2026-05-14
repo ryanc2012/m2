@@ -29,7 +29,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         cart: cart,
         paymentMethod: _selectedMethod,
       );
-      ref.read(cartProvider.notifier).clear();
+      ref.read(cartProvider.notifier).clearCart();
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => ReceiptScreen(transaction: tx)),

@@ -103,6 +103,10 @@ class CartNotifier extends StateNotifier<CartState> {
   void clear() {
     state = const CartState();
   }
+
+  void clearCart() {
+    state = const CartState();
+  }
 }
 
 final cartProvider = StateNotifierProvider<CartNotifier, CartState>(

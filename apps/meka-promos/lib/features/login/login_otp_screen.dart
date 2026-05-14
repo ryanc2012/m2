@@ -46,8 +46,12 @@ class _LoginOtpScreenState extends ConsumerState<LoginOtpScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    for (final c in _controllers) c.dispose();
-    for (final f in _focusNodes) f.dispose();
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -94,7 +98,7 @@ class _LoginOtpScreenState extends ConsumerState<LoginOtpScreen> {
     setState(() => _loading = true);
     try {
       final service = ref.read(registrationServiceProvider);
-      final data = await service.validateOtpById(
+      await service.validateOtpById(
         memberId: widget.memberId,
         otp: otp,
       );
@@ -107,7 +111,9 @@ class _LoginOtpScreenState extends ConsumerState<LoginOtpScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Verification failed: $e')),
         );
-        for (final c in _controllers) c.clear();
+        for (final c in _controllers) {
+          c.clear();
+        }
         _focusNodes[0].requestFocus();
       }
     } finally {

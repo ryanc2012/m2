@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../registration/registration_service.dart';
-import '../profile/profile_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});

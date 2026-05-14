@@ -66,7 +66,7 @@ try
     app.MapHealthChecks("/health");
 
     // All BFF endpoints require authentication (P1 security fix)
-    var secured = app.MapGroup("").RequireAuthorization();
+    var secured = app.MapGroup("/api/v1").RequireAuthorization();
     secured.MapApprovalEndpoints();
     secured.MapNotificationEndpoints();
     secured.MapMemberAdminEndpoints();

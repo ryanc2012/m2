@@ -64,9 +64,11 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
-    app.MapSalesEndpoints();
-    app.MapAttendanceEndpoints();
-    app.MapGoodsReceiptEndpoints();
+
+    var v1 = app.MapGroup("/api/v1");
+    v1.MapSalesEndpoints();
+    v1.MapAttendanceEndpoints();
+    v1.MapGoodsReceiptEndpoints();
 
     app.Run();
 }

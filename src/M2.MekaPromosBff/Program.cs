@@ -64,9 +64,11 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
-    app.MapMemberEndpoints();
-    app.MapCouponEndpoints();
-    app.MapNotificationHistoryEndpoints();
+
+    var v1 = app.MapGroup("/api/v1");
+    v1.MapMemberEndpoints();
+    v1.MapCouponEndpoints();
+    v1.MapNotificationHistoryEndpoints();
 
     app.Run();
 }

@@ -72,7 +72,7 @@ class SalesService {
     required CartState cart,
     required PaymentMethod paymentMethod,
   }) async {
-    final res = await _dio.post('/sales/transactions', data: {
+    final res = await _dio.post('/api/v1/sales/transactions', data: {
       'items': cart.items
           .map((i) => {'id': i.id, 'quantity': i.quantity})
           .toList(),
@@ -85,7 +85,7 @@ class SalesService {
 
   /// GET /sales/transactions/{id}
   Future<SaleTransaction> getTransaction(String id) async {
-    final res = await _dio.get('/sales/transactions/$id');
+    final res = await _dio.get('/api/v1/sales/transactions/$id');
     return SaleTransaction.fromJson(res.data as Map<String, dynamic>);
   }
 }

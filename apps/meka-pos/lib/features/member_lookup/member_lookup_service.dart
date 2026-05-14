@@ -32,7 +32,7 @@ class MemberLookupService {
   final Dio _dio;
 
   Future<MemberInfo> lookupByQr(String qrCode) async {
-    final res = await _dio.get('/members/qr/$qrCode');
+    final res = await _dio.get('/api/v1/members/qr/$qrCode');
     return MemberInfo.fromJson(res.data as Map<String, dynamic>);
   }
 }

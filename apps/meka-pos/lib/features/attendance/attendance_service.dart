@@ -11,6 +11,7 @@ class AttendanceRecord {
     required this.employeeId,
     required this.type,
     required this.timestamp,
+    this.hoursWorkedToday,
   });
 
   final String id;
@@ -18,35 +19,63 @@ class AttendanceRecord {
   final AttendanceType type;
   final DateTime timestamp;
 
+  /// Only populated in clock-out response.
+  final double? hoursWorkedToday;
+
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) => AttendanceRecord(
         id: json['id'] as String,
         employeeId: json['employeeId'] as String,
         type: json['type'] == 'clockIn' ? AttendanceType.clockIn : AttendanceType.clockOut,
         timestamp: DateTime.parse(json['timestamp'] as String),
+        hoursWorkedToday: (json['hoursWorkedToday'] as num?)?.toDouble(),
       );
 }
 
-/// Stub service — calls MekaPosBff /attendance endpoints.
+class AttendanceStatus {
+  const AttendanceStatus({
+    required this.isClockedIn,
+    this.lastClockIn,
+    this.hoursWorkedToday,
+  });
+
+  final bool isClockedIn;
+  final DateTime? lastClockIn;
+  final double? hoursWorkedToday;
+
+  factory AttendanceStatus.fromJson(Map<String, dynamic> json) => AttendanceStatus(
+        isClockedIn: json['isClockedIn'] as bool? ?? false,
+        lastClockIn: json['lastClockIn'] != null
+            ? DateTime.parse(json['lastClockIn'] as String)
+            : null,
+        hoursWorkedToday: (json['hoursWorkedToday'] as num?)?.toDouble(),
+      );
+}
+
 class AttendanceService {
   AttendanceService(this._dio);
   final Dio _dio;
 
-  /// POST /attendance/clock-in
-  Future<AttendanceRecord> clockIn(String employeeId) async {
-    final res = await _dio.post('/attendance/clock-in', data: {'employeeId': employeeId});
+  /// GET /api/v1/attendance/status/{staffId}
+  Future<AttendanceStatus> getStatus(String staffId) async {
+    final res = await _dio.get('/api/v1/attendance/status/$staffId');
+    return AttendanceStatus.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// POST /api/v1/attendance/clock-in
+  Future<AttendanceRecord> clockIn(String staffId) async {
+    final res = await _dio.post('/api/v1/attendance/clock-in', data: {
+      'staffId': staffId,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
     return AttendanceRecord.fromJson(res.data as Map<String, dynamic>);
   }
 
-  /// POST /attendance/clock-out
-  Future<AttendanceRecord> clockOut(String employeeId) async {
-    final res = await _dio.post('/attendance/clock-out', data: {'employeeId': employeeId});
-    return AttendanceRecord.fromJson(res.data as Map<String, dynamic>);
-  }
-
-  /// GET /attendance/last?employeeId={id}
-  Future<AttendanceRecord?> getLastRecord(String employeeId) async {
-    final res = await _dio.get('/attendance/last', queryParameters: {'employeeId': employeeId});
-    if (res.data == null) return null;
+  /// POST /api/v1/attendance/clock-out
+  Future<AttendanceRecord> clockOut(String staffId) async {
+    final res = await _dio.post('/api/v1/attendance/clock-out', data: {
+      'staffId': staffId,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
     return AttendanceRecord.fromJson(res.data as Map<String, dynamic>);
   }
 }

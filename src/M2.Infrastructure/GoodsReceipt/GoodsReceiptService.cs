@@ -1,11 +1,16 @@
 using M2.Domain.GoodsReceipt;
+using M2.SapConnector;
 using M2.SharedKernel;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace M2.Infrastructure.GoodsReceipt;
 
-/// <summary>In-memory stub GoodsReceiptService. EF wiring deferred post-Sprint 4.</summary>
-internal sealed class GoodsReceiptService(ILogger<GoodsReceiptService> logger) : IGoodsReceiptService
+/// <summary>In-memory stub GoodsReceiptService. EF wiring deferred post-Sprint 4.
+/// PostToSapAsync now enqueues via IOutboxService (SAP outbox pattern, ADR-006/ADR-017).</summary>
+internal sealed class GoodsReceiptService(
+    IOutboxService outboxService,
+    ILogger<GoodsReceiptService> logger) : IGoodsReceiptService
 {
     private static readonly Dictionary<Guid, GoodsReceiptNote> _store = [];
 
@@ -77,12 +82,27 @@ internal sealed class GoodsReceiptService(ILogger<GoodsReceiptService> logger) :
         return Task.FromResult(Result.Success<IReadOnlyList<GoodsReceiptNote>>(results));
     }
 
-    public Task<Result> PostToSapAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result> PostToSapAsync(Guid id, CancellationToken ct = default)
     {
-        if (!_store.TryGetValue(id, out _))
-            return Task.FromResult(Result.Failure($"GRN {id} not found."));
+        if (!_store.TryGetValue(id, out var note))
+            return Result.Failure($"GRN {id} not found.");
+
+        var payload = new SapGoodsMovementPayload(
+            DeliveryNoteNumber: note.SapDeliveryNoteNumber,
+            MovementType: "101", // Standard GR movement type
+            Items: note.LineItems
+                .Select(l => new SapGoodsMovementItem(
+                    MaterialNumber: l.ProductCode,
+                    Quantity: l.ReceivedQty > 0 ? l.ReceivedQty : l.ExpectedQty,
+                    UnitOfMeasure: l.UnitOfMeasure,
+                    StorageLocation: "0001"))
+                .ToList()
+                .AsReadOnly());
+
+        await outboxService.EnqueueAsync(payload, ct);
 
         logger.LogInformation("GRN SAP post enqueued via outbox: id={Id}", id);
-        return Task.FromResult(Result.Success());
+        return Result.Success();
     }
 }
+

@@ -18,6 +18,29 @@
 
 <!-- Append learnings below -->
 
+### 2026-05-13 — Sprint 4: S4.4 Hangfire/Outbox, S4.2 Approvals EF, S4.3 Discount Formula, P1 Security
+
+**What was built:**
+
+- **SapOutboxWorker** (Hangfire job, 30s): Polly 8 `ResiliencePipelineBuilder<bool>` with exponential backoff + jitter. Job creates its own DI scope via `IServiceScopeFactory` (critical for scoped services in Hangfire). Only handles `PostGoodsMovementAsync` operation — unknown operations marked Failed.
+- **OutboxService** (real EF, replaces NoOp): Serializes messages to JSON; derives TenantId/ShopId from optional marker interfaces `ITenantedOutboxMessage` / `IShopScopedOutboxMessage`. `ProcessPendingAsync` returns pending count only.
+- **GoodsReceiptService.PostToSapAsync**: now actually enqueues `SapGoodsMovementPayload` via `IOutboxService` — resolves the P1 silent dead outbox.
+- **ApprovalService**: full EF rewrite; removes static Dictionary fields; adds `EscalateAsync` with MediatR `IPublisher`; emits `ApprovalRequestEscalatedEvent`.
+- **DiscountEngine**: real formula using `PromotionType` switch + `FormulaJson` parsing via `System.Text.Json.JsonDocument`. BuyXGetY helper calculates free items at cheapest cart unit price.
+- **M2PortalBff P1**: all endpoint groups wrapped in `MapGroup("").RequireAuthorization()`.
+
+**Key decisions:**
+- `AddInfrastructure` signature extended to `(IConfiguration, IHostEnvironment? = null)`. Hangfire server + DevSeedService only registered when `environment != null`. BFFs call with 1 arg = no Hangfire workers in BFF processes.
+- `Hangfire.AspNetCore` (not just `Hangfire.NetCore`) required in Platform.Api for `MapHangfireDashboard()`.
+- `M2.SapConnector` project reference added to both `M2.Infrastructure` (for `ISapODataClient` type) and `M2.Platform.Api` (for `AddSapConnector()` call).
+- Polly 8 uses `ResiliencePipelineBuilder<T>` — not the old `Policy.Handle<>` fluent API.
+- `ApprovalStatus.Escalated` enum value already existed from Sprint 2 — no domain model changes needed.
+- `WellKnownTenants.Default` already existed in SharedKernel — replaced `Guid.Empty` in DiscountEngine.
+- **EF migration constraint**: S4.1 (IdempotencyKey) MUST run after Edie's `Sprint4_AuthSchema` migration. Zero migrations run in this session per sprint constraint.
+
+**Build result: 0 errors, 0 warnings (full solution)**
+
+
 ## 2026-05-13 — M2.Platform.Api Extraction Complete
 - Successfully extracted M2.Platform.Api as independent process on port 5100
 - All 8 module endpoint groups now registered only in Platform.Api/Program.cs

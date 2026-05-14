@@ -66,7 +66,7 @@ class ReturnService {
 
   /// GET /sales/transactions/{id}
   Future<OriginalTransaction> getTransaction(String transactionId) async {
-    final res = await _dio.get('/sales/transactions/$transactionId');
+    final res = await _dio.get('/api/v1/sales/transactions/$transactionId');
     return OriginalTransaction.fromJson(res.data as Map<String, dynamic>);
   }
 
@@ -75,7 +75,7 @@ class ReturnService {
     required String transactionId,
     required List<String> itemIds,
   }) async {
-    await _dio.post('/sales/transactions/$transactionId/returns', data: {
+    await _dio.post('/api/v1/sales/transactions/$transactionId/returns', data: {
       'itemIds': itemIds,
     });
   }

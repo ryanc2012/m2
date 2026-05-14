@@ -10,6 +10,16 @@
 
 <!-- Append learnings below -->
 
+## 2026-05-13 — S4.9: SalesService + DiscountEngine/PromotionService Tests
+
+- **+31 net-new tests** (78 passing, 8 skipped): SalesService (CreateSale happy path, line-item totals Theory, empty cart, idempotency ×2 Skip, VoidSale ×3 + Theory, ReturnSale ×3 + over-return Skip), DiscountEngine (4 existing contract tests kept + 3 real-engine passing + 5 real-engine Skip), PromotionService (eligibility ×5 including expired/different-shop/Expire domain invariant).
+- **InternalsVisibleTo + M2.Infrastructure reference**: Added both to allow real DiscountEngine instantiation in unit tests. Used `NullLogger<DiscountEngine>.Instance` instead of `Mock<ILogger<DiscountEngine>>()` — Castle.DynamicProxy cannot proxy `ILogger<T>` when T is internal and the assembly is strong-named (`DynamicProxyGenAssembly2` InternalsVisibleTo would be needed as well). NullLogger is cleaner for infrastructure implementation tests.
+- **ISalesService has no IdempotencyKey parameter** — BE-REC-001 R1 mandates it; 2 tests Skipped with clear reference. McManus must add the parameter to the interface before these can pass.
+- **IReturnService has no originalAmount lookup** — over-return validation is implementation-layer only; 1 test Skipped. EF ReturnService must lookup `originalTransaction.TotalAmount` to enforce the guard.
+- **DiscountEngine stub always returns 0 discount** — 5 formula-evaluation tests Skipped with `Pending S4.1` labels. The 3 real-engine tests that DO pass verify: (a) empty promo list → zero discount, (b) non-stackable filter, (c) PromotionService failure propagation.
+- **ADR-020 stackable filter confirmed in stub**: `DiscountEngine` filters with `.Where(p => p.IsStackable)` before building `AppliedPromotionIds`. This is tested and passing with real implementation.
+
+
 ## 2026-05-13 — Integration Test Harness Rewired
 - PlatformWebApplicationFactory targets M2.Platform.Api.Program directly
 - M2PlatformIntegrationTestBase sets X-Api-Key + X-Internal-Call + X-Internal-Secret on every client

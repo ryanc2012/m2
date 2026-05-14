@@ -51,6 +51,28 @@
 - SAP Outbox (Hangfire, Sprint 4) is a critical fix — GoodsReceiptService explicitly defers to outbox that never processes.
 - API versioning (`/api/v1/`) applied in Sprint 5 while no external consumers exist — zero migration cost.
 
+### 2026-05-13 — Sprint 1–4 Outstanding Items Audit
+
+**Verified actual code state vs sprint plan "Done" claims:**
+
+- **Sprint plan overstated "Done":** The sprint plan claims all 8 service implementations are complete but all 4 inspected services (SalesService, ApprovalService, PromotionService/DiscountEngine, GoodsReceiptService) are explicit in-memory stubs with no EF persistence. Every file has a doc comment saying "EF wiring deferred to Sprint 4."
+- **IApprovalService has no EscalateAsync** — `ApprovalStatus.Escalated` exists as a domain enum value but the interface and implementation have no escalation method. Sprint 4 story S4.2 lists it as a deliverable.
+- **DiscountEngine always returns 0 discount** (`DiscountEngine.cs` line 33: "Stub: no formula evaluation — return 0 discount"). This is not a valid Sprint 3 deliverable — it was listed as "Done."
+- **Hangfire: zero registration** — `NoOpOutboxService` is DI-registered; no Hangfire package, no `AddHangfire`, no `RecurringJob`. `GoodsReceiptService.PostToSapAsync` logs "enqueued via outbox" but writes nothing.
+- **WellKnownTenants.Default not added** — grep confirms no match anywhere in `/src`. Assigned to McManus in S4.7 but the constant is a SharedKernel prerequisite that should precede seed data.
+- **No idempotency key anywhere** — `SalesTransaction` entity and `SalesService.CreateTransactionAsync` have no idempotency key parameter or column. Sprint 4 S4.1 must add this from scratch.
+- **No `[Authorize]` on any BFF endpoint** — M2PortalBff, MekaPosBff, MekaPromosBff all have `AddMicrosoftIdentityWebApi` wired and `UseAuthentication()`/`UseAuthorization()` in the pipeline, but zero endpoint-level enforcement. Every route is publicly accessible.
+- **M2PortalBff Entra ID wiring is present** (contradicts sprint plan Discovered Gap) — `Program.cs` line 27 has `AddMicrosoftIdentityWebApi`. Gap was documented inaccurately; the real gap is endpoint-level `[Authorize]` enforcement.
+- **Blazor pages are genuinely mixed:** Promotions pages (PromotionList, PromotionCreate, PromotionDetail, PromotionEdit) have real data binding and service calls. Attendance.razor, Sales.razor, Settings.razor are pure stubs (Construction icon + placeholder text). Approvals pages have real data-bound tables and action handlers.
+- **Flutter apps more complete than sprint plan states:** meka-pos has sales/cart/payment/receipt/attendance/returns/login features (not just GoodsReceipt). meka-promos has coupons/promotions/registration/profile/login (not just Notifications). Both are functional shells calling BFF endpoints.
+- **API versioning gap confirmed** — all Platform.Api module groups are at `/modules/{name}/` (no `/api/v1/` prefix). All BFF endpoints also lack `/api/v1/` prefix.
+- **No Authorization module class exists anywhere** — no `AuthorizationService.cs`, no `IAuthorizationService` beyond any that might exist in the domain. Sprint 5 S5.1 starts from zero.
+
+**Key architectural risks going into Sprint 4:**
+- All business logic work in Sprint 4 (S4.1–S4.3) requires replacing in-memory stubs with real EF queries — this is not additive work, it's replacement. Estimate risk: scope creep on each story.
+- SAP outbox worker (S4.4) requires both Hangfire registration AND an actual outbox table writer replacing `NoOpOutboxService`. Two tasks in one story.
+- Sprint 4 seed data (S4.7) will use `Guid.Empty` for TenantId until `WellKnownTenants.Default` is added — this must be the first task of S4.7.
+
 ## Sprint Planning (2026-05-12)
 
 - Produced initial 4-sprint plan sequencing backend platform, approval, notification, member, promotions, sales, attendance, goods receipt, and SAP integration.

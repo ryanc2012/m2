@@ -86,7 +86,7 @@ class GoodsReceiptService {
   /// GET /api/goods-receipt/
   Future<List<GoodsReceipt>> listAsync() async {
     try {
-      final res = await _dio.get('/api/goods-receipt/');
+      final res = await _dio.get('/api/v1/goods-receipt/');
       return (res.data as List)
           .map((e) => GoodsReceipt.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -98,7 +98,7 @@ class GoodsReceiptService {
   /// GET /api/goods-receipt/{id}
   Future<GoodsReceipt> getAsync(String id) async {
     try {
-      final res = await _dio.get('/api/goods-receipt/$id');
+      final res = await _dio.get('/api/v1/goods-receipt/$id');
       return GoodsReceipt.fromJson(res.data as Map<String, dynamic>);
     } catch (_) {
       return _mockList().firstWhere(

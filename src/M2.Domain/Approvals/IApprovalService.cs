@@ -27,4 +27,11 @@ public interface IApprovalService
     Task<Result<IReadOnlyList<ApprovalRequest>>> GetPendingRequestsForApproverAsync(
         string approverId,
         CancellationToken ct = default);
+
+    Task<Result<ApprovalRequest>> EscalateAsync(
+        Guid requestId,
+        string escalatedBy,
+        string reason,
+        CancellationToken ct = default);
 }
+

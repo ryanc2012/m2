@@ -102,5 +102,11 @@
   "@registrationSubtitle": { "description": "Registration screen subtitle" },
 
   "coupons": "Coupons",
-  "@coupons": { "description": "Coupons nav item" }
+  "@coupons": { "description": "Coupons nav item" },
+
+  "loginTitle": "Member Login",
+  "@loginTitle": { "description": "Login screen title for returning members" },
+
+  "newMemberRegister": "New member? Register",
+  "@newMemberRegister": { "description": "Link to registration from login screen" }
 }

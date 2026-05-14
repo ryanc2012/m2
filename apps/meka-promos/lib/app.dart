@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import 'core/l10n/locale_provider.dart';
 import 'features/home/home_screen.dart';
+import 'features/login/login_screen.dart';
+import 'features/login/login_otp_screen.dart';
 import 'features/registration/registration_screen.dart';
 import 'features/registration/otp_verification_screen.dart';
 import 'features/registration/profile_setup_screen.dart';
@@ -35,10 +37,11 @@ class _MekaPromosAppState extends ConsumerState<MekaPromosApp> {
       redirect: (context, state) {
         final session = ref.read(memberSessionProvider);
         final isAuthed = session != null;
-        final isRegistration =
-            state.matchedLocation.startsWith('/registration');
-        if (!isAuthed && !isRegistration) return '/registration';
-        if (isAuthed && isRegistration) return '/';
+        final isOnboarding =
+            state.matchedLocation.startsWith('/registration') ||
+            state.matchedLocation.startsWith('/login');
+        if (!isAuthed && !isOnboarding) return '/registration';
+        if (isAuthed && isOnboarding) return '/';
         return null;
       },
       routes: [
@@ -63,6 +66,20 @@ class _MekaPromosAppState extends ConsumerState<MekaPromosApp> {
         GoRoute(
           path: '/profile/edit',
           builder: (_, __) => const EditProfileScreen(),
+        ),
+        GoRoute(
+          path: '/login',
+          builder: (_, __) => const LoginScreen(),
+        ),
+        GoRoute(
+          path: '/login/otp',
+          builder: (_, state) {
+            final extra = state.extra as Map<String, String>;
+            return LoginOtpScreen(
+              phone: extra['phone']!,
+              memberId: extra['memberId']!,
+            );
+          },
         ),
       ],
     );

@@ -157,6 +157,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => context.push('/login'),
+                        child: const Text('Already a member? Login'),
+                      ),
+                    ),
                   ],
                 ),
               ),

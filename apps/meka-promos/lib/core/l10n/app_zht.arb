@@ -102,5 +102,11 @@
   "@registrationSubtitle": { "description": "Registration screen subtitle" },
 
   "coupons": "優惠券",
-  "@coupons": { "description": "Coupons nav item" }
+  "@coupons": { "description": "Coupons nav item" },
+
+  "loginTitle": "會員登入",
+  "@loginTitle": { "description": "Login screen title for returning members" },
+
+  "newMemberRegister": "新會員？立即註冊",
+  "@newMemberRegister": { "description": "Link to registration from login screen" }
 }

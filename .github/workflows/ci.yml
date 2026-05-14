@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Build & Test (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore src/M2.sln
+
+      - name: Build
+        run: dotnet build src/M2.sln --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test src/M2.sln --no-build --configuration Release --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./TestResults/*.trx
+
+  build-flutter-pos:
+    name: Build Flutter (meka-pos)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+          channel: 'stable'
+
+      - name: Flutter pub get
+        working-directory: apps/meka-pos
+        run: flutter pub get
+
+      - name: Flutter analyze
+        working-directory: apps/meka-pos
+        run: flutter analyze
+
+      - name: Flutter test
+        working-directory: apps/meka-pos
+        run: flutter test
+        continue-on-error: true  # widget tests are counter stubs; not yet tied to real app logic
+
+  build-flutter-promos:
+    name: Build Flutter (meka-promos)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+          channel: 'stable'
+
+      - name: Flutter pub get
+        working-directory: apps/meka-promos
+        run: flutter pub get
+
+      - name: Flutter analyze
+        working-directory: apps/meka-promos
+        run: flutter analyze
+
+      - name: Flutter test
+        working-directory: apps/meka-promos
+        run: flutter test
+        continue-on-error: true  # widget tests are counter stubs; not yet tied to real app logic

@@ -24,7 +24,7 @@
 
 ## 1. Executive Summary
 
-This platform is a **greenfield enterprise layer** built on top of an existing SAP system, delivering enriched digital capabilities across multiple applications — beginning with the POS system. The chosen architecture is a **Modular Monolith with explicit bounded contexts**, deployed as a container-first application behind a BFF (Backend for Frontend) per client. Each client (Meka Promotion App, Meka POS, M2 Portal) has its own BFF to ensure interface stability and independent evolution. Cross-cutting platform services — Authorization, Approval, and Notification — are implemented as **in-process modules** (not separate microservices), sharing the same deployment unit while maintaining strict domain boundaries enforced by code structure and compilation rules. SAP integration is mediated through a dedicated Adapter module that isolates all SAP coupling behind an anti-corruption layer. This architecture is deliberately chosen for team size, delivery speed, and the risk profile of a greenfield system: it can be decomposed into microservices later if a bounded context's operational requirements diverge — but we will not pay the distributed systems tax before earning it.
+This platform is a **greenfield enterprise layer** built on top of an existing SAP system, delivering enriched digital capabilities across multiple applications — beginning with the POS system. The chosen architecture is a **Modular Monolith with explicit bounded contexts**, deployed as a container-first application behind a BFF (Backend for Frontend) per client. Each client (Meka Promotion App, Meka POS, M2 Portal) has its own BFF to ensure interface stability and independent evolution. Cross-cutting platform services — Authorization, Approval, and Notification — are all hosted within the `M2.Platform.Api` process (not separate microservices or in-process modules within BFFs). The BFFs communicate with these modules exclusively via REST/HTTPS calls to `M2.Platform.Api`, which owns all domain and cross-cutting modules. Strict domain boundaries are enforced by code structure and compilation rules within the platform process. SAP integration is mediated through a dedicated Adapter module that isolates all SAP coupling behind an anti-corruption layer. This architecture is deliberately chosen for team size, delivery speed, and the risk profile of a greenfield system: it can be decomposed into microservices later if a bounded context's operational requirements diverge — but we will not pay the distributed systems tax before earning it.
 
 ---
 
@@ -543,29 +543,29 @@ Implemented via `Microsoft.Extensions.Diagnostics.HealthChecks` with database co
 
 ### 8.1 Authorization Service
 
-**Decision: Shared Library Module (in-process)**
+**Decision: Platform.Api-hosted Authorization Module**
 
-Rationale: Authorization checks are on the hot path of every request. Network-crossing for each check would add latency and failure surface. Authorization data is read-heavy and can be cached aggressively in-process.
+Rationale: Authorization checks are on the hot path of every request. Rather than embedding authorization logic as an in-process module in each BFF, all authorization logic and data are centralized in `M2.Platform.Api`. BFFs call the Authorization module via REST/HTTPS, ensuring a single source of truth and consistent enforcement. Authorization data is read-heavy and can be cached aggressively within the platform process.
 
 **Design:**
 ```
-Platform.Authorization (C# project)
-  ├── IAuthorizationService          ← public interface consumed by BFFs and modules
+Platform.Authorization (C# project, hosted in M2.Platform.Api)
+  ├── IAuthorizationService          ← public interface exposed via REST endpoints
   ├── AuthorizationService           ← implementation
   ├── AuthorizationObject            ← domain model
   ├── AuthorizationCache             ← IMemoryCache wrapper — user role data cached 5 min
   └── AuthorizationDbContext         ← schema: authz.*
 ```
 
-Cache invalidation: when a user's role assignment changes, the Authorization Module publishes an in-process `RoleAssignmentChangedEvent` via MediatR; the cache entry is evicted.
+Cache invalidation: when a user's role assignment changes, the Authorization Module publishes a `RoleAssignmentChangedEvent` within the platform process; the cache entry is evicted.
 
 **Evolution path:** If authorization data grows complex (ABAC, dynamic policies), extract to a standalone Policy Decision Point (PDP) service with a local cache for low-latency. Today it doesn't warrant it.
 
 ### 8.2 Approval Service — State Machine Design
 
-**Decision: In-process module with explicit state machine**
+**Decision: Platform.Api-hosted Approval Module with explicit state machine**
 
-The approval workflow is **sequential and position-based**: each approval step must be completed by a user holding a specific organizational position before the next step activates.
+The approval workflow is **sequential and position-based**: each approval step must be completed by a user holding a specific organizational position before the next step activates. The Approval module is hosted exclusively within `M2.Platform.Api`, and all BFFs interact with it via REST/HTTPS endpoints.
 
 **State Machine:**
 
@@ -599,7 +599,7 @@ ApprovalWorkflowTemplate
   Id, EntityType, Steps[]   ← defines step order and required positions per entity type
 ```
 
-**Notifications:** On step completion, the Notification Module is triggered to push real-time status to the submitter and next approver.
+**Notifications:** On step completion, the Notification Module (hosted in `M2.Platform.Api`) is triggered to push real-time status to the submitter and next approver. All notification logic is centralized in the platform process; BFFs interact with it via REST/HTTPS.
 
 ### 8.3 Notification Service — Push Delivery
 
@@ -621,7 +621,7 @@ NotificationModule
   └── DeviceTokenRegistry           ← stores user ↔ FCM device token mapping
 ```
 
-The BFF hosts the SignalR Hub. Flutter apps register FCM tokens on login; the registry maps `UserId → FCMToken[]` to support multi-device.
+`M2.Platform.Api` hosts the SignalR Hub. Flutter apps register FCM tokens on login; the registry maps `UserId → FCMToken[]` to support multi-device. BFFs do not host notification infrastructure; all real-time and push notification logic is centralized in the platform process.
 
 **Trade-off acknowledged:** Azure Notification Hubs was evaluated. It adds managed fan-out for large audiences but introduces additional Azure dependency and cost. For this system's scale (staff + managers), direct FCM is sufficient and simpler. Revisit if the promotions app grows to 100k+ concurrent users.
 
@@ -682,7 +682,7 @@ The SAP Adapter translates SAP's data model into platform domain concepts. Domai
 | ORM | Entity Framework Core | 9.x | Code-first, migrations, LINQ — appropriate for domain-driven schema |
 | Validation | FluentValidation | 11.x | Expressive, testable, integrates with ASP.NET pipeline |
 | Mapping | Mapperly | latest | Source-generated, zero-reflection mapping — fast, type-safe |
-| Mediator | MediatR | 12.x | CQRS + in-process events — clean cross-module communication |
+| Mediator | MediatR | 12.x | CQRS + events within Platform.Api process — clean cross-module communication |
 | Resiliency | Polly | 8.x | Retry, circuit breaker, timeout policies |
 | HTTP Client | Refit | 7.x | Typed REST client generation (for SAP OData calls) |
 | Auth | Microsoft.Identity.Web | 3.x | Entra ID JWT validation, MSAL integration |

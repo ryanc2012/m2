@@ -10,6 +10,17 @@
 
 <!-- Append learnings below -->
 
+## 2026-05-14 — S6.9 + S6.10: bUnit Blazor Portal Tests + Flutter Widget Tests
+
+- **8 bUnit tests** (3 PromotionList, 2 PromotionCreate, 3 ApprovalList) in new `tests/M2.Tests.bUnit` project. Full .NET suite: 138 pass / 12 skip / 0 fail.
+- **`INotificationHubService` interface** extracted from `NotificationHubService` to allow `ApprovalList` to be rendered in bUnit without real SignalR/AAD. `FakeNotificationHubService` in test project is all no-ops.
+- **bUnit DI locking pattern**: `TestContext.Services` locks after first `GetService` call. `PromotionCreateTests` uses a static `BuildCtx(httpClient)` factory to register all services BEFORE `JSInterop.Mode` is accessed. Shared constructor is safe only when no per-test service registrations are needed.
+- **MudBlazor rules**: `JSRuntimeMode.Loose`; `MudPopoverProvider` must be rendered before any `MudSelect`/`MudDatePicker` component; `ctx.AddTestAuthorization().SetAuthorized("TestUser")` for `[Authorize]` pages.
+- **Enum serialization**: Mock HTTP responses must use typed DTOs (`PromotionSummary`, `ApprovalRequest`), not anonymous objects with string enum values — `System.Text.Json` defaults to integer enum deserialization.
+- **AngleSharp limitation**: `button:contains(...)` CSS selector unsupported; use LINQ: `cut.FindAll("button").First(b => b.TextContent.Contains("Approve"))`.
+- **9 Flutter tests (meka-pos)**: CartProvider unit tests (no widget imports) + AttendanceRecord model JSON tests. Avoided importing `cart_screen.dart` due to pre-existing `RadioListTile.leading` compile error in `payment_screen.dart` — documented for Fenster.
+- **5 Flutter tests (meka-promos)**: QR code rendering + coupon status chip display. `QrImageView` has no const constructor; outer `MaterialApp` must not be `const`.
+
 ## 2026-05-13 — S4.9: SalesService + DiscountEngine/PromotionService Tests
 
 - **+31 net-new tests** (78 passing, 8 skipped): SalesService (CreateSale happy path, line-item totals Theory, empty cart, idempotency ×2 Skip, VoidSale ×3 + Theory, ReturnSale ×3 + over-return Skip), DiscountEngine (4 existing contract tests kept + 3 real-engine passing + 5 real-engine Skip), PromotionService (eligibility ×5 including expired/different-shop/Expire domain invariant).

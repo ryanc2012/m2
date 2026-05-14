@@ -38,6 +38,7 @@ try
     builder.Services.AddSapConnector(builder.Configuration);
 
     builder.Services.AddHealthChecks();
+    builder.Services.AddProblemDetails();
 
     if (builder.Environment.IsDevelopment())
     {
@@ -49,6 +50,7 @@ try
     var app = builder.Build();
 
     app.UseSerilogRequestLogging();
+    app.UseExceptionHandler();
 
     if (app.Environment.IsDevelopment())
     {
@@ -62,14 +64,17 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
-    app.MapApprovalEndpoints();
-    app.MapNotificationEndpoints();
-    app.MapMemberAdminEndpoints();
-    app.MapPromotionEndpoints();
-    app.MapAttendanceAdminEndpoints();
-    app.MapGoodsReceiptEndpoints();
-    app.MapReportingEndpoints();
-    app.MapNotificationHistoryAdminEndpoints();
+
+    // All BFF endpoints require authentication (P1 security fix)
+    var secured = app.MapGroup("").RequireAuthorization();
+    secured.MapApprovalEndpoints();
+    secured.MapNotificationEndpoints();
+    secured.MapMemberAdminEndpoints();
+    secured.MapPromotionEndpoints();
+    secured.MapAttendanceAdminEndpoints();
+    secured.MapGoodsReceiptEndpoints();
+    secured.MapReportingEndpoints();
+    secured.MapNotificationHistoryAdminEndpoints();
 
     app.Run();
 }

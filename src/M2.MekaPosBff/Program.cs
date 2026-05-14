@@ -38,6 +38,7 @@ try
     builder.Services.AddSapConnector(builder.Configuration);
 
     builder.Services.AddHealthChecks();
+    builder.Services.AddProblemDetails();
 
     if (builder.Environment.IsDevelopment())
     {
@@ -49,6 +50,7 @@ try
     var app = builder.Build();
 
     app.UseSerilogRequestLogging();
+    app.UseExceptionHandler();
 
     if (app.Environment.IsDevelopment())
     {
@@ -76,3 +78,4 @@ finally
 {
     Log.CloseAndFlush();
 }
+

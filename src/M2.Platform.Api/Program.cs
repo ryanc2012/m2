@@ -55,6 +55,7 @@ public partial class Program
             builder.Services.AddAuthorization();
 
             builder.Services.AddHealthChecks();
+            builder.Services.AddProblemDetails();
 
             // SignalR — in-process push to Portal/BFF connected clients
             builder.Services.AddSignalR();
@@ -63,6 +64,7 @@ public partial class Program
             var app = builder.Build();
 
             app.UseSerilogRequestLogging();
+            app.UseExceptionHandler();
 
             app.UseSwagger();
             app.UseSwaggerUI();

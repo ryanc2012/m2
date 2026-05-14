@@ -5,6 +5,8 @@ using M2.SapConnector;
 using M2.SharedKernel;
 using M2.SharedKernel.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Identity.Web;
 using Serilog;
 
@@ -37,7 +39,9 @@ try
     builder.Services.AddInterModuleAuth(builder.Configuration);
     builder.Services.AddSapConnector(builder.Configuration);
 
-    builder.Services.AddHealthChecks();
+    var platformBaseUrl = builder.Configuration["Platform:BaseUrl"] ?? "https://localhost:5100";
+    builder.Services.AddHealthChecks()
+        .AddUrlGroup(new Uri($"{platformBaseUrl}/health/ready"), name: "platform-api", tags: ["ready"]);
     builder.Services.AddProblemDetails();
 
     if (builder.Environment.IsDevelopment())
@@ -64,6 +68,14 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
+    app.MapHealthChecks("/health/ready", new HealthCheckOptions
+    {
+        Predicate = check => check.Tags.Contains("ready")
+    });
+    app.MapHealthChecks("/health/live", new HealthCheckOptions
+    {
+        Predicate = _ => false
+    });
 
     var v1 = app.MapGroup("/api/v1");
     v1.MapMemberEndpoints();

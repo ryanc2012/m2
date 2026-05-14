@@ -8,6 +8,8 @@ using M2.SapConnector;
 using M2.SharedKernel;
 using M2.SharedKernel.Middleware;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Serilog;
 using System.Text.Encodings.Web;
@@ -54,7 +56,11 @@ public partial class Program
                 .AddScheme<AuthenticationSchemeOptions, PlatformNoOpAuthHandler>("ApiKey", _ => { });
             builder.Services.AddAuthorization();
 
-            builder.Services.AddHealthChecks();
+            builder.Services.AddHealthChecks()
+                .AddNpgSql(
+                    builder.Configuration.GetConnectionString("DefaultConnection")!,
+                    name: "postgres",
+                    tags: ["ready"]);
             builder.Services.AddProblemDetails();
 
             // SignalR — in-process push to Portal/BFF connected clients
@@ -85,6 +91,14 @@ public partial class Program
             app.UseAuthorization();
 
             app.MapHealthChecks("/health");
+            app.MapHealthChecks("/health/ready", new HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("ready")
+            });
+            app.MapHealthChecks("/health/live", new HealthCheckOptions
+            {
+                Predicate = _ => false
+            });
 
             // SignalR hub endpoint
             app.MapHub<NotificationHub>("/hubs/notifications");

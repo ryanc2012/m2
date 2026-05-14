@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.*" />
+    <PackageReference Include="Hangfire.NetCore" Version="1.*" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.*" />
     <PackageReference Include="Serilog.AspNetCore" Version="9.*" />
@@ -12,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\M2.Infrastructure\M2.Infrastructure.csproj" />
+    <ProjectReference Include="..\M2.SapConnector\M2.SapConnector.csproj" />
     <ProjectReference Include="..\M2.SharedKernel\M2.SharedKernel.csproj" />
   </ItemGroup>
 </Project>

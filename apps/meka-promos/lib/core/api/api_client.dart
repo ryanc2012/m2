@@ -1,7 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-const _kBaseUrl = 'https://api.placeholder.mekapromos.com';
+const _kBaseUrl = String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'https://localhost:5001',
+);
+
+// Injected via --dart-define=API_KEY=... in CI. Dev default is safe/non-secret.
+const _kApiKey = String.fromEnvironment(
+  'API_KEY',
+  defaultValue: 'meka-promos-dev-key',
+);
 
 Dio _buildDio() {
   final dio = Dio(
@@ -16,11 +25,10 @@ Dio _buildDio() {
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {
-        // TODO(Sprint 2): attach Bearer token from MSAL token cache.
+        options.headers['X-Api-Key'] = _kApiKey;
         handler.next(options);
       },
       onError: (error, handler) {
-        // TODO(Sprint 2): handle 401 → silent token refresh.
         handler.next(error);
       },
     ),

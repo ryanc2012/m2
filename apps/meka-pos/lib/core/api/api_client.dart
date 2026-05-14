@@ -1,8 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Base URL placeholder — injected via --dart-define or flavour config.
-const _kBaseUrl = 'https://api.placeholder.mekapos.com';
+const _kBaseUrl = String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'https://localhost:5000',
+);
+
+String? _cachedToken;
+
+/// Called by AuthService after a successful MSAL token acquisition.
+void setAuthToken(String? token) => _cachedToken = token;
 
 Dio _buildDio() {
   final dio = Dio(
@@ -14,15 +21,18 @@ Dio _buildDio() {
     ),
   );
 
-  // Auth interceptor stub — will be wired to MSAL token in Sprint 2.
   dio.interceptors.add(
     InterceptorsWrapper(
-      onRequest: (options, handler) {
-        // TODO(Sprint 2): attach Bearer token from MSAL token cache.
+      onRequest: (options, handler) async {
+        if (_cachedToken != null) {
+          options.headers['Authorization'] = 'Bearer $_cachedToken';
+        }
         handler.next(options);
       },
       onError: (error, handler) {
-        // TODO(Sprint 2): handle 401 → trigger silent token refresh.
+        if (error.response?.statusCode == 401) {
+          // TODO(Sprint 7): trigger silent token refresh via MSAL.
+        }
         handler.next(error);
       },
     ),

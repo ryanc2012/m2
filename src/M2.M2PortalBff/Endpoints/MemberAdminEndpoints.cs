@@ -1,5 +1,7 @@
+using M2.Domain.Authorization;
 using M2.Domain.Members.Dtos;
 using M2.Infrastructure.InterModule.Interfaces;
+using System.Security.Claims;
 
 namespace M2.M2PortalBff.Endpoints;
 
@@ -25,8 +27,13 @@ public static class MemberAdminEndpoints
         group.MapPut("/{id:guid}", async (
             Guid id,
             UpdateMemberRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             IMembersModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_MEMBER_ADMIN") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var payload = new UpdateMemberProfilePayload(
                 req.FirstNameEn, req.FirstNameZht, req.LastNameEn, req.LastNameZht, req.Email);
             var result = await client.UpdateProfileAsync(id, payload);

@@ -1,5 +1,7 @@
 using M2.Domain.Approvals.Dtos;
+using M2.Domain.Authorization;
 using M2.Infrastructure.InterModule.Interfaces;
+using System.Security.Claims;
 
 namespace M2.M2PortalBff.Endpoints;
 
@@ -39,8 +41,13 @@ public static class ApprovalEndpoints
         group.MapPost("/requests/{id:guid}/approve", async (
             Guid id,
             ApproveRejectRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             IApprovalsModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_APPROVAL_MANAGE") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var payload = new ApproveRejectPayload(req.ApproverId, req.Comment);
             var result = await client.ApproveStepAsync(id, payload);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
@@ -49,8 +56,13 @@ public static class ApprovalEndpoints
         group.MapPost("/requests/{id:guid}/reject", async (
             Guid id,
             ApproveRejectRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             IApprovalsModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_APPROVAL_MANAGE") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var payload = new ApproveRejectPayload(req.ApproverId, req.Comment);
             var result = await client.RejectStepAsync(id, payload);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);

@@ -1,5 +1,7 @@
+using M2.Domain.Authorization;
 using M2.Domain.GoodsReceipt.Dtos;
 using M2.Infrastructure.InterModule.Interfaces;
+using System.Security.Claims;
 
 namespace M2.M2PortalBff.Endpoints;
 
@@ -11,8 +13,13 @@ public static class GoodsReceiptEndpoints
 
         group.MapPost("/", async (
             CreateGrnRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             IGoodsReceiptModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_GOODS_RECEIPT_CREATE") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var payload = new CreateGoodsReceiptPayload(
                 req.TenantId, req.ShopId, req.SapDeliveryNoteNumber,
                 req.LineItems.Select(l =>
@@ -45,8 +52,13 @@ public static class GoodsReceiptEndpoints
 
         group.MapPost("/{id:guid}/confirm", async (
             Guid id,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             IGoodsReceiptModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_GOODS_RECEIPT_CREATE") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var result = await client.ConfirmAsync(id);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
@@ -54,8 +66,13 @@ public static class GoodsReceiptEndpoints
         group.MapPost("/{id:guid}/discrepancy", async (
             Guid id,
             RecordDiscrepancyRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             IGoodsReceiptModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_GOODS_RECEIPT_CREATE") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var payload = new RecordDiscrepancyPayload(req.LineItemId, req.ReceivedQty, req.DiscrepancyNote);
             var result = await client.RecordDiscrepancyAsync(id, payload);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
@@ -63,8 +80,13 @@ public static class GoodsReceiptEndpoints
 
         group.MapPost("/{id:guid}/post-to-sap", async (
             Guid id,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             IGoodsReceiptModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_GOODS_RECEIPT_CREATE") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var result = await client.PostToSapAsync(id);
             return result.IsSuccess ? Results.Accepted() : Results.BadRequest(result.Error);
         });

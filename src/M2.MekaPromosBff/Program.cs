@@ -92,3 +92,6 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+// Required by WebApplicationFactory<Program> in integration tests (Microsoft.AspNetCore.Mvc.Testing)
+public partial class Program { }

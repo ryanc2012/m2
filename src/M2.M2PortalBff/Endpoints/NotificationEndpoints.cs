@@ -1,4 +1,6 @@
+using M2.Domain.Authorization;
 using M2.Domain.Notifications;
+using System.Security.Claims;
 
 namespace M2.M2PortalBff.Endpoints;
 
@@ -31,8 +33,13 @@ public static class NotificationEndpoints
 
         group.MapPost("/send", async (
             SendNotificationRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             INotificationService svc) =>
         {
+            if (await authz.CheckAsync(user, "M_NOTIFICATION_MANAGE") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var result = await svc.SendPushAsync(req.UserId, req.TemplateId, req.Parameters ?? []);
             return result.IsSuccess ? Results.Accepted() : Results.BadRequest(result.Error);
         });

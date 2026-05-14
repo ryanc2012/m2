@@ -1,6 +1,8 @@
+using M2.Domain.Authorization;
 using M2.Domain.Sales;
 using M2.Domain.Sales.Dtos;
 using M2.Infrastructure.InterModule.Interfaces;
+using System.Security.Claims;
 
 namespace M2.MekaPosBff.Endpoints;
 
@@ -12,8 +14,13 @@ public static class SalesEndpoints
 
         group.MapPost("/transactions", async (
             CreateTransactionRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             ISalesModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_SALES_CREATE") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var payload = new CreateTransactionPayload(
                 req.TenantId, req.ShopId, req.MemberId, req.CashierId,
                 req.PaymentMethod.ToString(),
@@ -36,8 +43,13 @@ public static class SalesEndpoints
 
         group.MapPost("/transactions/{id:guid}/void", async (
             Guid id,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             ISalesModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_SALES_VOID") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var result = await client.VoidTransactionAsync(id);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         });
@@ -54,8 +66,13 @@ public static class SalesEndpoints
 
         returnGroup.MapPost("/", async (
             InitiateReturnRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             ISalesModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_SALES_VOID") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var payload = new InitiateReturnPayload(
                 req.TenantId, req.ShopId, req.OriginalTransactionId, req.Reason, req.RefundAmount);
             var result = await client.InitiateReturnAsync(payload);

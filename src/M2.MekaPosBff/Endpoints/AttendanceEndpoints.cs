@@ -1,6 +1,8 @@
 using M2.Domain.Attendance;
 using M2.Domain.Attendance.Dtos;
+using M2.Domain.Authorization;
 using M2.Infrastructure.InterModule.Interfaces;
+using System.Security.Claims;
 
 namespace M2.MekaPosBff.Endpoints;
 
@@ -12,8 +14,13 @@ public static class AttendanceEndpoints
 
         group.MapPost("/clock-in", async (
             ClockInRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             IAttendanceModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_ATTENDANCE_SELF") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var payload = new ClockInPayload(req.TenantId, req.ShopId, req.EmployeeId, req.Source.ToString(), req.Notes);
             var result = await client.ClockInAsync(payload);
             return result.IsSuccess
@@ -23,8 +30,13 @@ public static class AttendanceEndpoints
 
         group.MapPost("/clock-out", async (
             ClockOutRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             IAttendanceModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_ATTENDANCE_SELF") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var payload = new ClockOutPayload(req.TenantId, req.EmployeeId, req.Notes);
             var result = await client.ClockOutAsync(payload);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);

@@ -1,5 +1,7 @@
+using M2.Domain.Authorization;
 using M2.Domain.GoodsReceipt.Dtos;
 using M2.Infrastructure.InterModule.Interfaces;
+using System.Security.Claims;
 
 namespace M2.MekaPosBff.Endpoints;
 
@@ -11,8 +13,13 @@ public static class GoodsReceiptEndpoints
 
         group.MapPost("/", async (
             CreateGrnRequest req,
+            IAuthorizationService authz,
+            ClaimsPrincipal user,
             IGoodsReceiptModuleClient client) =>
         {
+            if (await authz.CheckAsync(user, "M_GOODS_RECEIPT_CREATE") == AuthCheckResult.Deny)
+                return Results.Forbid();
+
             var payload = new CreateGoodsReceiptPayload(
                 req.TenantId, req.ShopId, req.SapDeliveryNoteNumber,
                 req.LineItems.Select(l =>

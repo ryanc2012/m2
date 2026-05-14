@@ -1,3 +1,4 @@
+using M2.Domain.ApiKeys;
 using M2.Domain.Approvals;
 using M2.Domain.Attendance;
 using M2.Domain.Authorization;
@@ -58,6 +59,9 @@ public class M2DbContext(DbContextOptions<M2DbContext> options) : DbContext(opti
     public DbSet<RoleAuthorizationObject> RoleAuthorizationObjects => Set<RoleAuthorizationObject>();
     public DbSet<ObjectFieldValue> ObjectFieldValues => Set<ObjectFieldValue>();
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
+
+    // API Keys
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

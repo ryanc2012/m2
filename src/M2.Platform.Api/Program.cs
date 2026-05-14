@@ -124,6 +124,7 @@ public partial class Program
             app.MapGoodsReceiptModule();
             app.MapReportingModule();
             app.MapNotificationsModule();
+            app.MapApiKeyModule();
 
             app.Run();
         }

@@ -2,6 +2,7 @@ using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Hangfire;
 using Hangfire.PostgreSql;
+using M2.Domain.ApiKeys;
 using M2.Domain.Approvals;
 using M2.Domain.Attendance;
 using M2.Domain.Authorization;
@@ -11,6 +12,7 @@ using M2.Domain.Notifications;
 using M2.Domain.Promotions;
 using M2.Domain.Reporting;
 using M2.Domain.Sales;
+using M2.Infrastructure.ApiKeys;
 using M2.Infrastructure.Approvals;
 using M2.Infrastructure.Attendance;
 using M2.Infrastructure.Authorization;
@@ -119,6 +121,9 @@ public static class InfrastructureServiceExtensions
         // Authorization
         services.AddMemoryCache();
         services.AddScoped<IAuthorizationService, AuthorizationService>();
+
+        // API Keys
+        services.AddScoped<IApiKeyService, ApiKeyService>();
 
         // Dev seed — only in Development environment (Edie's DevSeedService)
         if (environment?.IsDevelopment() == true)

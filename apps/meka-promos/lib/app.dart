@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/demo/demo_mode.dart';
 import 'core/l10n/locale_provider.dart';
 import 'features/home/home_screen.dart';
 import 'features/login/login_screen.dart';
@@ -32,7 +33,7 @@ class _MekaPromosAppState extends ConsumerState<MekaPromosApp> {
   void initState() {
     super.initState();
     _router = GoRouter(
-      initialLocation: '/registration',
+      initialLocation: '/',
       refreshListenable: _refresher,
       redirect: (context, state) {
         final session = ref.read(memberSessionProvider);
@@ -40,7 +41,6 @@ class _MekaPromosAppState extends ConsumerState<MekaPromosApp> {
         final isOnboarding =
             state.matchedLocation.startsWith('/registration') ||
             state.matchedLocation.startsWith('/login');
-        if (!isAuthed && !isOnboarding) return '/registration';
         if (isAuthed && isOnboarding) return '/';
         return null;
       },
@@ -118,11 +118,55 @@ class _MekaPromosAppState extends ConsumerState<MekaPromosApp> {
         Locale('zh', 'Hans'),  // ZHS (Simplified Chinese)
         Locale('en'),          // EN
       ],
+      builder: kDemoMode
+          ? (context, child) => Column(
+                children: [
+                  const DemoBanner(),
+                  Expanded(child: child ?? const SizedBox.shrink()),
+                ],
+              )
+          : null,
     );
   }
 }
 
 class _RouterRefresher extends ChangeNotifier {
   void refresh() => notifyListeners();
+}
+
+/// Amber banner shown at the top of every screen when [kDemoMode] is true.
+class DemoBanner extends StatelessWidget {
+  const DemoBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.amber.shade700,
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.play_circle_outline, size: 14, color: Colors.black87),
+                const SizedBox(width: 6),
+                Text(
+                  'DEMO MODE — sample data only',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 

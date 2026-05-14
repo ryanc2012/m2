@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
+import 'core/demo/demo_mode.dart';
+import 'core/demo/demo_providers.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: MekaPromosApp()));
+  runApp(
+    ProviderScope(
+      overrides: kDemoMode ? demoProviderOverrides : const [],
+      child: const MekaPromosApp(),
+    ),
+  );
 }
 
 

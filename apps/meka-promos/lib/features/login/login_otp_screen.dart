@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:meka_promos/core/demo/demo_mode.dart';
 import 'package:meka_promos/core/l10n/app_localizations.dart';
 import '../registration/registration_service.dart';
 import '../profile/profile_service.dart';
@@ -192,6 +193,16 @@ class _LoginOtpScreenState extends ConsumerState<LoginOtpScreen> {
                       );
                     }),
                   ),
+                  if (kDemoMode) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      '🎭 Demo: enter any 6 digits',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   if (_loading)
                     const Center(child: CircularProgressIndicator())

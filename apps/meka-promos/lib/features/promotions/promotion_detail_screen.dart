@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../profile/profile_service.dart';
 import 'promotions_service.dart';
 
 class PromotionDetailScreen extends ConsumerWidget {
@@ -52,6 +54,11 @@ class _PromotionDetailBodyState
   String? _couponMessage;
 
   Future<void> _getCoupon() async {
+    final session = ref.read(memberSessionProvider);
+    if (session == null) {
+      _showLoginRequired(context);
+      return;
+    }
     setState(() {
       _gettingCoupon = true;
       _couponMessage = null;
@@ -65,6 +72,44 @@ class _PromotionDetailBodyState
     } finally {
       if (mounted) setState(() => _gettingCoupon = false);
     }
+  }
+
+  void _showLoginRequired(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_outline, size: 48),
+              const SizedBox(height: 12),
+              Text(
+                '登入後即可領取優惠券\nSign in to claim coupon',
+                textAlign: TextAlign.center,
+                style: Theme.of(ctx).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  context.go('/registration');
+                },
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 48)),
+                child: const Text('登入 / Sign in'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('取消 / Cancel'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override

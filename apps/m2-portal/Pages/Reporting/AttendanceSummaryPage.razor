@@ -1,0 +1,59 @@
+@page "/reporting/attendance"
+@attribute [Authorize]
+@using M2Portal.Services
+
+<PageTitle>Attendance Summary — M2 Portal</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Attendance Summary</MudText>
+
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="5">
+                <MudDatePicker @bind-Date="_fromDate" Label="From" Variant="Variant.Outlined" DateFormat="yyyy-MM-dd" />
+            </MudItem>
+            <MudItem xs="12" sm="5">
+                <MudDatePicker @bind-Date="_toDate" Label="To" Variant="Variant.Outlined" DateFormat="yyyy-MM-dd" />
+            </MudItem>
+            <MudItem xs="12" sm="2" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadAsync" FullWidth="true">
+                    Search
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_error != null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+else if (_rows.Count > 0)
+{
+    <MudTable T="AttendanceSummaryRow" Items="_rows" Dense="true" Hover="true" Elevation="2">
+        <HeaderContent>
+            <MudTh>Staff ID</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Date</MudTh>
+            <MudTh>Clock In</MudTh>
+            <MudTh>Clock Out</MudTh>
+            <MudTh Style="text-align:right">Hours Worked</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Staff ID">@context.StaffId</MudTd>
+            <MudTd DataLabel="Name">@context.StaffName</MudTd>
+            <MudTd DataLabel="Date">@context.Date.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Clock In">@(context.ClockIn?.ToString("HH:mm") ?? "—")</MudTd>
+            <MudTd DataLabel="Clock Out">@(context.ClockOut?.ToString("HH:mm") ?? "—")</MudTd>
+            <MudTd DataLabel="Hours Worked" Style="text-align:right">@context.HoursWorked.ToString("N1")</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+else if (!_loading)
+{
+    <MudAlert Severity="Severity.Info">No attendance data found for the selected date range.</MudAlert>
+}

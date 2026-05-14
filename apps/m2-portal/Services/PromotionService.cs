@@ -52,50 +52,57 @@ public record UpdatePromotionRequest(
 /// </summary>
 public class PromotionService(HttpClient http)
 {
-    /// GET /promotions
+    /// GET /api/v1/promotions
     public async Task<IReadOnlyList<PromotionSummary>> GetAllAsync(
         CancellationToken ct = default)
     {
         return await http.GetFromJsonAsync<List<PromotionSummary>>(
-            "/promotions", ct) ?? [];
+            "/api/v1/promotions", ct) ?? [];
     }
 
-    /// GET /promotions/{id}
+    /// GET /api/v1/promotions/{id}
     public async Task<PromotionDetailDto> GetDetailAsync(Guid id, CancellationToken ct = default)
     {
-        return await http.GetFromJsonAsync<PromotionDetailDto>($"/promotions/{id}", ct)
+        return await http.GetFromJsonAsync<PromotionDetailDto>($"/api/v1/promotions/{id}", ct)
             ?? throw new KeyNotFoundException($"Promotion {id} not found.");
     }
 
-    /// POST /promotions
+    /// POST /api/v1/promotions
     public async Task<PromotionDetailDto> CreateAsync(
         CreatePromotionRequest request, CancellationToken ct = default)
     {
-        var response = await http.PostAsJsonAsync("/promotions", request, ct);
+        var response = await http.PostAsJsonAsync("/api/v1/promotions", request, ct);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<PromotionDetailDto>(ct)
             ?? throw new InvalidOperationException("Empty response from server.");
     }
 
-    /// PUT /promotions/{id}
+    /// PUT /api/v1/promotions/{id}
     public async Task UpdateAsync(
         Guid id, UpdatePromotionRequest request, CancellationToken ct = default)
     {
-        var response = await http.PutAsJsonAsync($"/promotions/{id}", request, ct);
+        var response = await http.PutAsJsonAsync($"/api/v1/promotions/{id}", request, ct);
         response.EnsureSuccessStatusCode();
     }
 
-    /// POST /promotions/{id}/activate
+    /// POST /api/v1/promotions/{id}/activate
     public async Task ActivateAsync(Guid id, CancellationToken ct = default)
     {
-        var response = await http.PostAsync($"/promotions/{id}/activate", null, ct);
+        var response = await http.PostAsync($"/api/v1/promotions/{id}/activate", null, ct);
         response.EnsureSuccessStatusCode();
     }
 
-    /// POST /promotions/{id}/pause
+    /// POST /api/v1/promotions/{id}/pause
     public async Task PauseAsync(Guid id, CancellationToken ct = default)
     {
-        var response = await http.PostAsync($"/promotions/{id}/pause", null, ct);
+        var response = await http.PostAsync($"/api/v1/promotions/{id}/pause", null, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// POST /api/v1/promotions/{id}/submit
+    public async Task SubmitForApprovalAsync(Guid id, CancellationToken ct = default)
+    {
+        var response = await http.PostAsync($"/api/v1/promotions/{id}/submit", null, ct);
         response.EnsureSuccessStatusCode();
     }
 }

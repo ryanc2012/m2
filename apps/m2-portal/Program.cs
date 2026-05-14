@@ -68,6 +68,13 @@ builder.Services.AddHttpClient<M2Portal.Services.NotificationLogService>(client 
         builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5002");
 }).AddHttpMessageHandler<M2Portal.Services.PortalBffTokenHandler>();
 
+// Reporting service
+builder.Services.AddHttpClient<M2Portal.Services.ReportingService>(client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["M2PortalBff:BaseUrl"] ?? "https://localhost:5002");
+}).AddHttpMessageHandler<M2Portal.Services.PortalBffTokenHandler>();
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

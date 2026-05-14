@@ -84,6 +84,25 @@ public partial class PromotionDetail
         }
     }
 
+    private async Task SubmitForApprovalAsync()
+    {
+        _acting = true;
+        try
+        {
+            await PromotionSvc.SubmitForApprovalAsync(Id);
+            Snackbar.Add("Submitted for approval.", Severity.Success);
+            await LoadAsync();
+        }
+        catch
+        {
+            Snackbar.Add("Failed to submit for approval. Please try again.", Severity.Error);
+        }
+        finally
+        {
+            _acting = false;
+        }
+    }
+
     private static Color StatusColor(PromotionStatus status) => status switch
     {
         PromotionStatus.Active          => Color.Success,

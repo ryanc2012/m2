@@ -36,6 +36,11 @@ public partial class PromotionCreate
             Snackbar.Add("Start and end dates are required.", Severity.Warning);
             return;
         }
+        if (_endDate <= _startDate)
+        {
+            Snackbar.Add("End date must be after start date.", Severity.Warning);
+            return;
+        }
 
         _submitting = true;
         try

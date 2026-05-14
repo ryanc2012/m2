@@ -41,7 +41,7 @@ public class GoodsReceiptService(HttpClient http)
         try
         {
             return await http.GetFromJsonAsync<List<GoodsReceiptSummary>>(
-                $"/api/goods-receipt/?tenantId={tenantId}&shopId={shopId}", ct) ?? [];
+                $"/api/v1/goods-receipt/?tenantId={tenantId}&shopId={shopId}", ct) ?? [];
         }
         catch
         {
@@ -55,7 +55,7 @@ public class GoodsReceiptService(HttpClient http)
         try
         {
             return await http.GetFromJsonAsync<GoodsReceiptDetail>(
-                $"/api/goods-receipt/{id}", ct)
+                $"/api/v1/goods-receipt/{id}", ct)
                 ?? throw new KeyNotFoundException($"Goods receipt {id} not found.");
         }
         catch
@@ -67,7 +67,7 @@ public class GoodsReceiptService(HttpClient http)
     /// POST /api/goods-receipt/{id}/confirm
     public async Task ConfirmAsync(Guid id, CancellationToken ct = default)
     {
-        var response = await http.PostAsync($"/api/goods-receipt/{id}/confirm", null, ct);
+        var response = await http.PostAsync($"/api/v1/goods-receipt/{id}/confirm", null, ct);
         response.EnsureSuccessStatusCode();
     }
 
@@ -75,7 +75,7 @@ public class GoodsReceiptService(HttpClient http)
     public async Task RecordDiscrepancyAsync(Guid id, string note, CancellationToken ct = default)
     {
         var response = await http.PostAsJsonAsync(
-            $"/api/goods-receipt/{id}/discrepancy", new { note }, ct);
+            $"/api/v1/goods-receipt/{id}/discrepancy", new { note }, ct);
         response.EnsureSuccessStatusCode();
     }
 

@@ -12,6 +12,7 @@
         <MudSpacer />
         <AuthorizeView>
             <Authorized>
+                <NotificationBell />
                 <MudText Class="mr-3">@context.User.Identity?.Name</MudText>
                 <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" Href="/MicrosoftIdentity/Account/SignOut" />
             </Authorized>

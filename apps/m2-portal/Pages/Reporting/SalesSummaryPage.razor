@@ -1,0 +1,63 @@
+@page "/reporting/sales"
+@attribute [Authorize]
+@using M2Portal.Services
+
+<PageTitle>Sales Summary — M2 Portal</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Sales Summary</MudText>
+
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="5">
+                <MudDatePicker @bind-Date="_fromDate" Label="From" Variant="Variant.Outlined" DateFormat="yyyy-MM-dd" />
+            </MudItem>
+            <MudItem xs="12" sm="5">
+                <MudDatePicker @bind-Date="_toDate" Label="To" Variant="Variant.Outlined" DateFormat="yyyy-MM-dd" />
+            </MudItem>
+            <MudItem xs="12" sm="2" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadAsync" FullWidth="true">
+                    Search
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_error != null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+else if (_rows.Count > 0)
+{
+    <MudStack Row="true" Justify="Justify.FlexEnd" Class="mb-2">
+        <MudButton StartIcon="@Icons.Material.Filled.Download"
+                   Variant="Variant.Outlined"
+                   OnClick="ExportCsvAsync">Export CSV</MudButton>
+    </MudStack>
+
+    <MudTable T="SalesSummaryRow" Items="_rows" Dense="true" Hover="true" Elevation="2">
+        <HeaderContent>
+            <MudTh>Date</MudTh>
+            <MudTh>Transactions</MudTh>
+            <MudTh Style="text-align:right">Revenue (RM)</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Date">@context.Date.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Transactions">@context.TransactionCount</MudTd>
+            <MudTd DataLabel="Revenue (RM)" Style="text-align:right">@context.Revenue.ToString("N2")</MudTd>
+        </RowTemplate>
+        <FooterContent>
+            <MudTd colspan="2"><strong>Total</strong></MudTd>
+            <MudTd Style="text-align:right"><strong>RM @_rows.Sum(r => r.Revenue).ToString("N2")</strong></MudTd>
+        </FooterContent>
+    </MudTable>
+}
+else if (!_loading)
+{
+    <MudAlert Severity="Severity.Info">No sales data found for the selected date range.</MudAlert>
+}

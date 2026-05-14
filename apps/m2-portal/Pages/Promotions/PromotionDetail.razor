@@ -95,6 +95,14 @@ else if (_detail is not null)
                                    FullWidth="true">
                             Edit Draft
                         </MudButton>
+                        <MudButton OnClick="SubmitForApprovalAsync"
+                                   Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Send"
+                                   FullWidth="true"
+                                   Disabled="_acting">
+                            Submit for Approval
+                        </MudButton>
                     }
 
                     @if (_detail.Status == PromotionStatus.Draft || _detail.Status == PromotionStatus.Paused)

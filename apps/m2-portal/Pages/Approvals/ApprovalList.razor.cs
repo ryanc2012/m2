@@ -4,10 +4,11 @@ using MudBlazor;
 
 namespace M2Portal.Pages.Approvals;
 
-public partial class ApprovalList
+public partial class ApprovalList : IAsyncDisposable
 {
     [Inject] private ApprovalService ApprovalSvc { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private NotificationHubService HubService { get; set; } = null!;
 
     private List<ApprovalRequest> _approvals = [];
     private bool _loading = true;
@@ -16,6 +17,27 @@ public partial class ApprovalList
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
+        await ConnectSignalRAsync();
+    }
+
+    private async Task ConnectSignalRAsync()
+    {
+        try
+        {
+            await HubService.StartAsync();
+            HubService.OnApprovalStateChanged(async (_, _) =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    await LoadAsync();
+                    StateHasChanged();
+                });
+            });
+        }
+        catch
+        {
+            // SignalR unavailable in dev without real Azure AD — degrade gracefully
+        }
     }
 
     private async Task LoadAsync()
@@ -72,4 +94,6 @@ public partial class ApprovalList
         ApprovalStatus.Escalated => Color.Info,
         _                        => Color.Default,
     };
+
+    public async ValueTask DisposeAsync() => await HubService.DisposeAsync();
 }

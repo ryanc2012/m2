@@ -1,0 +1,51 @@
+@using M2Portal.Services
+@implements IAsyncDisposable
+@inject NotificationHubService HubService
+
+<MudBadge Content="@_unreadCount" Overlap="true" Visible="@(_unreadCount > 0)" Color="Color.Error">
+    <MudIconButton Icon="@Icons.Material.Filled.Notifications"
+                   Color="Color.Inherit"
+                   OnClick="TogglePanel" />
+</MudBadge>
+
+@if (_panelOpen)
+{
+    <MudPaper Class="notification-panel" Elevation="8"
+              Style="position:absolute; right:16px; top:64px; width:360px; max-height:480px; overflow-y:auto; z-index:1000;">
+        <MudList T="NotificationEntry" Dense="true">
+            <MudListSubheader>
+                <MudStack Row="true" AlignItems="AlignItems.Center">
+                    <MudText Typo="Typo.subtitle2">Notifications</MudText>
+                    <MudSpacer />
+                    @if (_unreadCount > 0)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="MarkAllReadAsync">
+                            Mark all read
+                        </MudButton>
+                    }
+                </MudStack>
+            </MudListSubheader>
+            @foreach (var n in _notifications)
+            {
+                <MudListItem T="NotificationEntry"
+                             Style="@(!n.IsRead ? "background:var(--mud-palette-background-grey);" : "")">
+                    <MudStack Spacing="0">
+                        <MudText Typo="Typo.body2"
+                                 Style="@($"font-weight:{(!n.IsRead ? "600" : "normal")}")">
+                            @n.Title
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @n.ReceivedAt.ToLocalTime().ToString("HH:mm")
+                        </MudText>
+                    </MudStack>
+                </MudListItem>
+            }
+            @if (_notifications.Count == 0)
+            {
+                <MudListItem T="NotificationEntry">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">No notifications</MudText>
+                </MudListItem>
+            }
+        </MudList>
+    </MudPaper>
+}

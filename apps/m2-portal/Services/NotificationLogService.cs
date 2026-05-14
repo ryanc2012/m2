@@ -30,7 +30,7 @@ public class NotificationLogService(HttpClient http)
         {
             var query = BuildQuery(shopId, from, to, memberId);
             return await http.GetFromJsonAsync<List<NotificationLogEntry>>(
-                $"/api/notification-history/{query}", ct) ?? [];
+                $"/api/v1/notification-history/{query}", ct) ?? [];
         }
         catch
         {

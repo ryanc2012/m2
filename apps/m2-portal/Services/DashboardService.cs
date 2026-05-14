@@ -13,7 +13,7 @@ public class DashboardService(HttpClient http) : IDashboardService
         try
         {
             return await http.GetFromJsonAsync<DashboardSummary>(
-                "/api/reports/dashboard-summary", ct)
+                "/api/v1/reports/dashboard-summary", ct)
                 ?? MockSummary();
         }
         catch

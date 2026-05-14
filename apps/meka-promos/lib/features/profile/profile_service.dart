@@ -70,13 +70,13 @@ class ProfileService {
 
   /// GET /members/me
   Future<MemberProfile> getProfile() async {
-    final res = await _dio.get('/members/me');
+    final res = await _dio.get('/api/v1/members/me');
     return MemberProfile.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// PUT /members/me
   Future<MemberProfile> updateProfile(MemberProfile profile) async {
-    final res = await _dio.put('/members/me', data: {
+    final res = await _dio.put('/api/v1/members/me', data: {
       'firstNameZht': profile.firstNameZht,
       'lastNameZht': profile.lastNameZht,
       'firstNameEn': profile.firstNameEn,

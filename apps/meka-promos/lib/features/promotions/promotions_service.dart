@@ -64,7 +64,7 @@ class PromotionsService {
 
   /// GET /promotions — active promotions for the authenticated member's shop.
   Future<List<Promotion>> getActivePromotions() async {
-    final res = await _dio.get('/promotions');
+    final res = await _dio.get('/api/v1/promotions');
     return (res.data as List)
         .map((e) => Promotion.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -72,13 +72,13 @@ class PromotionsService {
 
   /// GET /promotions/{id}
   Future<Promotion> getPromotion(String id) async {
-    final res = await _dio.get('/promotions/$id');
+    final res = await _dio.get('/api/v1/promotions/$id');
     return Promotion.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// POST /promotions/{id}/coupons — issue a coupon for the member.
   Future<void> getCoupon(String promotionId) async {
-    await _dio.post('/promotions/$promotionId/coupons');
+    await _dio.post('/api/v1/promotions/$promotionId/coupons');
   }
 }
 

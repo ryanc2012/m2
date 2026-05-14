@@ -51,7 +51,7 @@ class CouponsService {
 
   /// GET /members/me/coupons — all coupons for authenticated member.
   Future<List<Coupon>> getMyCoupons() async {
-    final res = await _dio.get('/members/me/coupons');
+    final res = await _dio.get('/api/v1/members/me/coupons');
     return (res.data as List)
         .map((e) => Coupon.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -59,7 +59,7 @@ class CouponsService {
 
   /// GET /members/me/coupons/{id}
   Future<Coupon> getCoupon(String id) async {
-    final res = await _dio.get('/members/me/coupons/$id');
+    final res = await _dio.get('/api/v1/members/me/coupons/$id');
     return Coupon.fromJson(res.data as Map<String, dynamic>);
   }
 }

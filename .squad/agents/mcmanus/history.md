@@ -18,6 +18,43 @@
 
 <!-- Append learnings below -->
 
+### 2026-05-15 — Security: Removed Demo Mode from API Documentation Standard
+
+**What changed:**
+
+- Removed `§1.3 Demo Mode Behaviour` (entire section) from `docs/standards/api.md`.
+- Removed the `Demo Mode` field from the §1.1 Standard Fields table.
+- Added a prominent `## ⚠️ Security: No Server-Side Demo Mode` section at the top of the doc (after the intro, before §1).
+- Updated §4.3 from "Demo Mode Auth Bypass" to "Demo Mode Is Client-Only — No Server-Side Bypass"; removed the endpoint doc snippet that showed `Demo Mode: MOCKED`.
+- Replaced the `### Demo Mode` section in the §6 endpoint template with an explicit warning note.
+
+**Rule established (Ryan's directive, 2026-05-15):**  
+Demo mode is client-only. `--dart-define=DEMO_MODE=true` only affects the Flutter client. The API/backend must never check for a demo mode flag, skip auth, or return mock data based on any client-supplied signal. Any server-side demo behaviour is a security vulnerability.
+
+**Decision recorded:** `.squad/decisions/inbox/mcmanus-no-server-demo-mode.md`
+
+
+
+### 2026-05-15 — API / Backend Documentation Standard
+
+**What was produced:**
+
+- Created `docs/standards/api.md` — the authoritative API and backend documentation standard for the m2 platform.
+
+**Scope covered:**
+1. **Endpoint documentation** — standard fields (method, path, host, auth, request/response body, status codes, demo mode, idempotency). All 9 status codes required in every endpoint doc, even if N/A.
+2. **Service / repository layer** — XML doc requirements for C# interfaces (`<summary>`, `<param>`, `<returns>`, `<remarks>`, `<exception>`); Dart `///` doc format for Flutter services; explicit side-effect documentation convention.
+3. **Business logic rules** — Rule ID scheme `BR-{DOMAIN}-{NUMBER}`; decision table format for multi-branch logic; eligibility checklists; specific rules for Discount Engine and Return/Refund enforcement.
+4. **Auth & Security** — Two-layer auth model documented (MSAL Bearer for BFF, X-Api-Key for Platform.Api modules); MSAL scope and SAP auth object requirements; demo mode bypass is client-only (never server-side).
+5. **Error handling** — Standard error envelope (`error`, `code`, `traceId`); `Result<T>` → HTTP status code mapping table; async SAP outbox failure path documentation pattern.
+6. **Template** — Full copy-paste endpoint doc template covering all fields.
+
+**Key decisions recorded:**
+- Error messages are part of the API contract — keep them stable; Flutter may pattern-match on them.
+- Demo mode bypass is client-only. No server-side bypass permitted.
+- `Result.Failure` is not used for auth failures — middleware handles 401/403 before the handler.
+- Health endpoints are always exempt from both auth and rate limiting (consistent with S6.RL decision).
+
 ### 2026-05-13 — Sprint 4: S4.4 Hangfire/Outbox, S4.2 Approvals EF, S4.3 Discount Formula, P1 Security
 
 **What was built:**

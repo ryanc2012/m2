@@ -8,6 +8,16 @@
 
 ## Learnings
 
+### 2026-05-15 — Documentation Standards Framework
+
+- The `docs/` folder already had organic structure (architecture, data, developer-guide, testing, backlog, standards, sprints) but no master index or common header convention. The framework standardizes on top of what exists rather than replacing it.
+- All existing docs in `docs/standards/CODING-STANDARDS.md` already use `> **Status:** / **Author:** / **Date:**` style headers — the new standard aligns to this pattern and formalizes it.
+- ADR-001 through ADR-022 live in `.squad/decisions.md` (established during initial planning). The `docs/adr/` folder is the forward-looking home; migration of old ADRs is explicitly deferred to avoid a big-bang rename that disrupts in-progress work.
+- Mermaid was chosen as the diagram standard because it renders natively in GitHub (no tool install, no PNG commit churn). C4 and other richer formats are supported via PNG/SVG export with source co-located.
+- Ownership assigned along existing domain lines: Fenster owns frontend.md, Edie owns database.md, McManus owns api.md. This matches their sprint workstreams.
+- The 90-day stale-doc rule gives the team a concrete trigger for review without requiring ceremony — it runs on calendar, not on PRs.
+- Next available ADR number after migration: ADR-023.
+
 ### 2026-05-13 — GitHub Migration, Sprint 7 Deferral, Multi-tenancy Assessment
 
 **Q1 (GitHub → Azure DevOps):**

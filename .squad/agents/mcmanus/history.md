@@ -2,102 +2,23 @@
 
 ## Core Context
 
-2026-05-13T16:58:43.887+08:00 — Updated docs/sprints/sprint-plan.md per Ryan's directives:
-- Sprint 7 renamed and marked DEFERRED, with explicit gate conditions section
-- Sprints 4–6 left unchanged except S7.1/S7.2 stories annotated with pull-forward notes
-- Status line updated to reflect Sprint 7's deferred/gate-triggered status
-(No inbox entry needed; directives captured in request)
-
-2026-05-13: Pulled CI pipeline story into Sprint 5 (S5.CI), removed S5.8 (rate limiting) from Sprint 5, carried rate limiting to Sprint 6 (S6.RL), updated story tables, points, and goal/summary lines for Sprints 5, 6, and 7 per Ryan's approval. Removed CI pull-forward annotation from S7.1, added Docker Compose pull-forward note to S7.2, and adjusted all sprint point totals accordingly.
-
 - **Project:** A Point of Sale (POS) system for managing transactions, inventory, and sales operations.
 - **Role:** Backend Dev
 - **Joined:** 2026-05-11T02:37:43.912Z
 
-## Learnings
+## Recent Learnings
 
-<!-- Append learnings below -->
+### 2026-05-15 — Documentation Standards
 
-### 2026-05-15 — Security: Removed Demo Mode from API Documentation Standard
+Authored `docs/standards/api.md` covering endpoint docs, error handling, auth model, and business rules. Security decision: demo mode is **client-only** — no server-side bypass.
 
-**What changed:**
+### 2026-05-13 — Sprint 4 Completion
 
-- Removed `§1.3 Demo Mode Behaviour` (entire section) from `docs/standards/api.md`.
-- Removed the `Demo Mode` field from the §1.1 Standard Fields table.
-- Added a prominent `## ⚠️ Security: No Server-Side Demo Mode` section at the top of the doc (after the intro, before §1).
-- Updated §4.3 from "Demo Mode Auth Bypass" to "Demo Mode Is Client-Only — No Server-Side Bypass"; removed the endpoint doc snippet that showed `Demo Mode: MOCKED`.
-- Replaced the `### Demo Mode` section in the §6 endpoint template with an explicit warning note.
+Built Hangfire outbox worker, EF-backed approval service, discount formula engine, and endpoint authorization guards. Polly 8 circuit breaker implemented. GoodsReceiptService.PostToSapAsync now queues real outbox messages.
 
-**Rule established (Ryan's directive, 2026-05-15):**  
-Demo mode is client-only. `--dart-define=DEMO_MODE=true` only affects the Flutter client. The API/backend must never check for a demo mode flag, skip auth, or return mock data based on any client-supplied signal. Any server-side demo behaviour is a security vulnerability.
+### 2026-05-13 — Platform.Api Extraction
 
-**Decision recorded:** `.squad/decisions/inbox/mcmanus-no-server-demo-mode.md`
-
-
-
-### 2026-05-15 — API / Backend Documentation Standard
-
-**What was produced:**
-
-- Created `docs/standards/api.md` — the authoritative API and backend documentation standard for the m2 platform.
-
-**Scope covered:**
-1. **Endpoint documentation** — standard fields (method, path, host, auth, request/response body, status codes, demo mode, idempotency). All 9 status codes required in every endpoint doc, even if N/A.
-2. **Service / repository layer** — XML doc requirements for C# interfaces (`<summary>`, `<param>`, `<returns>`, `<remarks>`, `<exception>`); Dart `///` doc format for Flutter services; explicit side-effect documentation convention.
-3. **Business logic rules** — Rule ID scheme `BR-{DOMAIN}-{NUMBER}`; decision table format for multi-branch logic; eligibility checklists; specific rules for Discount Engine and Return/Refund enforcement.
-4. **Auth & Security** — Two-layer auth model documented (MSAL Bearer for BFF, X-Api-Key for Platform.Api modules); MSAL scope and SAP auth object requirements; demo mode bypass is client-only (never server-side).
-5. **Error handling** — Standard error envelope (`error`, `code`, `traceId`); `Result<T>` → HTTP status code mapping table; async SAP outbox failure path documentation pattern.
-6. **Template** — Full copy-paste endpoint doc template covering all fields.
-
-**Key decisions recorded:**
-- Error messages are part of the API contract — keep them stable; Flutter may pattern-match on them.
-- Demo mode bypass is client-only. No server-side bypass permitted.
-- `Result.Failure` is not used for auth failures — middleware handles 401/403 before the handler.
-- Health endpoints are always exempt from both auth and rate limiting (consistent with S6.RL decision).
-
-### 2026-05-13 — Sprint 4: S4.4 Hangfire/Outbox, S4.2 Approvals EF, S4.3 Discount Formula, P1 Security
-
-**What was built:**
-
-- **SapOutboxWorker** (Hangfire job, 30s): Polly 8 `ResiliencePipelineBuilder<bool>` with exponential backoff + jitter. Job creates its own DI scope via `IServiceScopeFactory` (critical for scoped services in Hangfire). Only handles `PostGoodsMovementAsync` operation — unknown operations marked Failed.
-- **OutboxService** (real EF, replaces NoOp): Serializes messages to JSON; derives TenantId/ShopId from optional marker interfaces `ITenantedOutboxMessage` / `IShopScopedOutboxMessage`. `ProcessPendingAsync` returns pending count only.
-- **GoodsReceiptService.PostToSapAsync**: now actually enqueues `SapGoodsMovementPayload` via `IOutboxService` — resolves the P1 silent dead outbox.
-- **ApprovalService**: full EF rewrite; removes static Dictionary fields; adds `EscalateAsync` with MediatR `IPublisher`; emits `ApprovalRequestEscalatedEvent`.
-- **DiscountEngine**: real formula using `PromotionType` switch + `FormulaJson` parsing via `System.Text.Json.JsonDocument`. BuyXGetY helper calculates free items at cheapest cart unit price.
-- **M2PortalBff P1**: all endpoint groups wrapped in `MapGroup("").RequireAuthorization()`.
-
-**Key decisions:**
-- `AddInfrastructure` signature extended to `(IConfiguration, IHostEnvironment? = null)`. Hangfire server + DevSeedService only registered when `environment != null`. BFFs call with 1 arg = no Hangfire workers in BFF processes.
-- `Hangfire.AspNetCore` (not just `Hangfire.NetCore`) required in Platform.Api for `MapHangfireDashboard()`.
-- `M2.SapConnector` project reference added to both `M2.Infrastructure` (for `ISapODataClient` type) and `M2.Platform.Api` (for `AddSapConnector()` call).
-- Polly 8 uses `ResiliencePipelineBuilder<T>` — not the old `Policy.Handle<>` fluent API.
-- `ApprovalStatus.Escalated` enum value already existed from Sprint 2 — no domain model changes needed.
-- `WellKnownTenants.Default` already existed in SharedKernel — replaced `Guid.Empty` in DiscountEngine.
-- **EF migration constraint**: S4.1 (IdempotencyKey) MUST run after Edie's `Sprint4_AuthSchema` migration. Zero migrations run in this session per sprint constraint.
-
-**Build result: 0 errors, 0 warnings (full solution)**
-
-
-## 2026-05-13 — M2.Platform.Api Extraction Complete
-- Successfully extracted M2.Platform.Api as independent process on port 5100
-- All 8 module endpoint groups now registered only in Platform.Api/Program.cs
-- BFFs stripped of module mappings; use AddInterModuleClients() to call platform via HTTP
-- Added docs/ARCHITECTURE.md with 4-process topology diagram
-- Note: Program.cs needs UseAuthentication/UseAuthorization + auth scheme registered (Copilot fixed post-extraction)
-
-2026-05-12 — Sprint 4: Goods Receipt API, SAP Integration Layer (real SapODataClient), Reporting & Dashboard API, Notification History. Project feature-complete for UAT.
-2026-05-12 — Sprint 3: Promotions, Sales, Attendance APIs delivered. Domain entities/interfaces for all three, in-memory stubs, BFF endpoints. Coupon pre-issuance, stackable flag, refund method enforcement, ECR deferred. dotnet build clean.
-
-### 2026-05-12 — Sprint 2: Approval engine, Notification service, Member API delivered. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.
-
-### 2026-05-12 — Sprint 1: Backend Platform Foundation
-
-**What was built:**
-- Full `.NET 9` solution (`src/M2.sln`) with 9 projects: SharedKernel, Domain, Infrastructure, SapConnector, 3× BFF (MekaPOS, MekaPromos, M2Portal), and 2× test (Unit, Integration).
-- SharedKernel: `ITenanted`, `IShopScoped`, `BaseEntity` (multi-tenancy + multi-store + soft-delete), `Result<T>`, `AppException`, `BilingualText` (EN/ZHT), `ApiKeyMiddleware` stub.
-- All three BFFs: Minimal API bootstrap with Entra ID (`Microsoft.Identity.Web`), Serilog structured logging, Swashbuckle (dev only), CORS placeholder, `/health` endpoint.
-- SapConnector: `ISapODataClient` + `ISapNcoClient` interfaces, `SapConnectorOptions`, no-op implementations, `SapConnectorServiceExtensions`.
-- Infrastructure: `M2DbContext` (EF Core 9 + Npgsql), `IOutboxService` + no-op, `BaseEntityConfiguration` (EF base for all entities), `BilingualTextConfiguration` (owned entity mapping), initial migration stub.
+M2.Platform.Api runs on port 5100 as independent ASP.NET Core process. All 8 module endpoint groups moved from BFFs to Platform. BFFs call via typed HttpClients (AddInterModuleClients).
 - `dotnet build`: **0 errors, 0 warnings**.
 
 **Key implementation decisions:**

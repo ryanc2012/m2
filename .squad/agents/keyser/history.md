@@ -3,12 +3,19 @@
 ## Core Context
 
 - **Project:** A Point of Sale (POS) system for managing transactions, inventory, and sales operations.
-- **Role:** Lead
+- **Role:** Lead/Architect
 - **Joined:** 2026-05-11T02:37:43.910Z
 
-## Learnings
+## Learnings — Summarized
 
-### 2026-05-15 — Documentation Standards Framework
+### 2026-05-27 — Architecture Proposals (ADR-002/003/004)
+
+Proposed three ADRs to `docs/architecture/ARCHITECTURE.md`:
+- **ADR-002:** Cross-Cutting Service Decoupling (5th process for auth/approval/notification isolation)
+- **ADR-003:** Stateful Authentication (Redis-backed sessions with IAuthenticationProvider abstraction)
+- **ADR-004:** Enhanced Approval Model (VariablePosition + PositionGroup with N-level escalation)
+
+
 
 - The `docs/` folder already had organic structure (architecture, data, developer-guide, testing, backlog, standards, sprints) but no master index or common header convention. The framework standardizes on top of what exists rather than replacing it.
 - All existing docs in `docs/standards/CODING-STANDARDS.md` already use `> **Status:** / **Author:** / **Date:**` style headers — the new standard aligns to this pattern and formalizes it.

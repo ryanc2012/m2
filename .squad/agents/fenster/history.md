@@ -6,46 +6,11 @@
 - **Role:** Frontend Dev
 - **Joined:** 2026-05-11T02:37:43.914Z
 
-## Learnings
+## Recent Learnings
 
-2026-05-15 — Frontend doc standard created at `docs/standards/frontend.md`. Establishes how to document screens, components, theme tokens, routing, and demo mode across meka-pos and meka-promos. Includes a copy-paste screen template. All color references must use `AppColors.*` or `colorScheme.*` roles — never raw hex.
+### 2026-05-15 — Frontend Documentation Standards & Theme Updates
 
-2026-05-15 — Pin exact primary/secondary colors with `.copyWith()` after `fromSeed`: `ColorScheme.fromSeed(seedColor: X)` does NOT guarantee `colorScheme.primary == X` — Material 3 derives a tonal palette from the seed, producing a shifted hue. To guarantee exact hex values while keeping the full tonal palette (surfaces, containers, etc.), chain `.copyWith(primary: AppColors.primary, onPrimary: Colors.white, secondary: AppColors.secondary, onSecondary: Colors.white)` after `fromSeed`. Applied to both light and dark themes in `app_theme.dart`.
-
-2026-05-15 — Dynamic color confirmed disabled in meka-promos: The `dynamic_color` package and `DynamicColorBuilder` widget were never added to meka-promos. `ColorScheme.fromSeed(seedColor: AppColors.primary)` is the sole colour source — completely static and unaffected by device wallpaper. Added an explicit comment to `app_theme.dart` documenting this intent so it is not accidentally introduced later.
-
-2026-05-15 — meka-promos theme color changed to dark cyan: Theme config lives entirely in `apps/meka-promos/lib/shared/theme/app_theme.dart` (`AppColors` + `AppTheme`). All screens reference `theme.colorScheme.primary/secondary` (derived from the seed) — no scattered hardcoded hex values. Changed `primary` from `0xFF0099A9` → `0xFF0E7490` (Tailwind cyan-700) and `secondary` from `0xFF0288D1` → `0xFF155E75` (Tailwind cyan-800). Single-file change propagates the palette across the entire app via Material 3 `ColorScheme.fromSeed`.
-
-2026-05-15 — Demo mode enhanced (fake OTP + detail pages): Added `lib/core/demo/demo_services.dart` with `DemoRegistrationService` (extends `RegistrationService`, calls `super(Dio())`) and `DemoProfileService` (extends `ProfileService`). Both override all network methods with no-ops or hard-coded demo values. Added 6 new overrides to `demoProviderOverrides`: `registrationServiceProvider`, `profileServiceProvider`, `promotionDetailProvider(id)` per demo promo, `couponDetailProvider(id)` per demo coupon. Used collection-for inside the `List<Override>` literal for family provider overrides. Added `kDemoMode`-gated hint text "🎭 Demo: enter any 6 digits" to `otp_verification_screen.dart` and `login_otp_screen.dart`. Pre-existing `auth_service.dart` errors (MSAL undefined) are unrelated to demo work.
-
-2026-05-15 — Anonymous promo browsing: changed meka-promos to allow unauthenticated access to `/` (promotions tab). Router `initialLocation` changed to `'/'`; removed blanket redirect to `/registration` for anon users. Auth gate moved to point-of-action: `_getCoupon()` in `PromotionDetailScreen` checks `memberSessionProvider` and shows a `showModalBottomSheet` login prompt if session is null. `HomeScreen` tabs 1 (Coupons), 2 (My QR), 4 (Profile) show `_LoginPromptBody` for anon users. AppBar shows login icon for anon, logout icon for authed users. Demo mode unaffected — demo pre-seeds `memberSessionProvider` so user is treated as logged in. Company primary color changed from `0xFF1A237E` to `0xFF0099A9`.
-
-
-2026-05-13 — Blazor mode assessment: m2-portal is **Blazor Server** (classic pattern — `AddServerSideBlazor()` + `MapBlazorHub()` + `_Host` fallback). Confirmed NOT WASM, not unified .NET 8 render-mode model. Recommendation: stay on Blazor Server. SignalR NotificationBell planned for Sprint 6 is the clincher — it's trivial on Server, awkward on everything else. Entra ID auth already wired via Microsoft.Identity.Web OIDC. MudBlazor already chosen. No credible case for WASM or React/Angular for this back-office use case. Future tech-debt: migrate to .NET 8+ unified Blazor Web App model (AddRazorComponents + AddInteractiveServerComponents) for cleaner SSR/interactive mixing — not urgent, tag for post-Sprint 6.
-2026-05-12 — Sprint 4: Print receipt, Goods Receipt UI (6th tab), Notification inbox, Dashboard, Notification Log pages, MudBlazor warnings fixed. All builds clean. Project feature-complete for UAT.
-2026-05-12 — Sprint 3: POS core flows (cart, payment, receipt, returns, member lookup, attendance), member app promotion/coupon UI, portal promotion management. 5-tab POS nav, inline member QR, DTO naming, camera placeholder. All builds clean.
-
-### 2026-05-12 — Sprint 2: Flutter member registration/profile/QR, Blazor approval UI delivered. See .squad/log/2026-05-12T142236Z-sprint2-complete.md.
-
-### 2026-05-12 — Sprint 1: App Shells Created (POS, Promos, Portal)
-
-#### What Was Built
-
-- **meka-pos** (Flutter, POS staff): `flutter pub get` ✅. MSAL shared-device auth via `msal_auth ^1.0.8` (maps to ADR-018/019). Riverpod ProviderScope root. ZHT-only locale (ADR-022). `SingleAccountPca` from `msal_auth` is the correct API for shared-device/single-account mode — each staff login replaces the previous account on the device.
-- **meka-promos** (Flutter, member/consumer): `flutter pub get` ✅. Standard (multi-account) MSAL auth via `MultipleAccountPca`. ZHT/ZHS/EN language switcher via `SegmentedButton<Locale>` and Riverpod `localeProvider`. 4-tab bottom nav (Promotions, My QR, Notifications, Profile).
-- **m2-portal** (Blazor Server, managers): `dotnet build` ✅ (0 errors). MudBlazor 7.15.0 chosen as component library. Microsoft.Identity.Web upgraded to 3.8.3 to clear vulnerability warning. Sidebar nav with 5 placeholder items. All routes protected via `[Authorize]` + `CascadingAuthenticationState`.
-
-#### Key Technical Decisions Made
-
-1. **`msal_auth` package** chosen over `flutter_appauth` — wraps native MSAL SDK directly and exposes `SingleAccountPca` / `MultipleAccountPca` distinction cleanly. This matches our two auth modes (shared-device POS vs personal member device).
-2. **`MultipleAccountPca`** for meka-promos, **`SingleAccountPca`** for meka-pos — the critical distinction between the two Flutter apps at the auth layer.
-3. **MudBlazor 7.x** chosen for m2-portal over Radzen — richer free component set, strong community, MIT licence, no server-side licensing constraints.
-4. **Locale as Riverpod `StateProvider`** in meka-promos — allows instant live hot-swap of locale without app restart. Will need to add `shared_preferences` persistence in Sprint 2.
-5. **`flutter gen-l10n`** (`generate: true` in pubspec + `l10n.yaml`) — standard Flutter localisation toolchain. ARB files in `lib/core/l10n/`. meka-pos has one ARB (ZHT); meka-promos has three (ZHT, ZHS, EN).
-
-#### Watch-Outs for Sprint 2
-
-- **MSAL `msal_auth` 1.0.8**: The `SingleAccountPca.create()` and `MultipleAccountPca.create()` APIs require the `assets/msal_config.json` file to exist at build time on Android. This JSON file must be added for each app's Android assets when Azure App Registration IDs are available.
+Created `docs/standards/frontend.md` covering Flutter and Blazor as unified structure with platform-specific sections. Fixed theme color handling: use `.copyWith()` after `ColorScheme.fromSeed()` to lock exact primary/secondary hex values. Disabled dynamic color in meka-promos. Changed meka-promos theme to dark cyan (`0xFF0E7490`). Added demo OTP hint text and profile/promo detail providers.
 - **`msal_auth` broker (iOS)**: Set `broker: true` for POS (shared-device), `broker: false` for Promos. On iOS, broker requires Azure Authenticator app to be installed — document this for QA environments.
 - **Blazor net9.0 upgrade**: Template defaulted to net7.0. Upgraded to net9.0 in csproj. If any dev sees a TFM mismatch, it's because the scaffold was from the net7 template.
 - **`MainLayout.razor.css` / `NavMenu.razor.css`**: Old template CSS files retained. They're empty placeholders — MudBlazor handles styling. Safe to delete in a later cleanup sprint.

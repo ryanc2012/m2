@@ -18,8 +18,10 @@
 4. [Component Diagram](#4-component-diagram)
 5. [BFF Pattern Design](#5-bff-pattern-design)
 6. [Authentication & Authorization Architecture](#6-authentication--authorization-architecture)
+   - [Local Development Authentication](#local-development-authentication)
 7. [Container Architecture](#7-container-architecture)
 8. [Cross-Cutting Services Design](#8-cross-cutting-services-design)
+   - [8.4 Operation Behavior Pipeline](#84-operation-behavior-pipeline)
 9. [SAP Integration Architecture](#9-sap-integration-architecture)
 10. [Technology Stack Recommendation](#10-technology-stack-recommendation)
 11. [Security Architecture](#11-security-architecture)
@@ -556,10 +558,12 @@ public record ResolvedPosition(
 | Variable | Resolution |
 |----------|-----------|
 | `superior_of_requester` | Direct reporting manager in org hierarchy |
-| `branch_manager_of_requester` | Branch manager of the requester's assigned branch |
-| `department_head_of_requester` | Head of the requester's department |
 
-Variable definitions are extensible via configuration — new variables do not require code changes.
+> ⚠️ **Code-defined constants:** `PositionVariable` values are NOT free-form strings.
+> Each value maps to a concrete resolver implementation in `IPositionResolver`.
+> Adding a new variable requires a code change — implement the resolver logic,
+> register it, and update this list. There is no runtime configuration path
+> for new position variables.
 
 #### Quorum Logic
 
@@ -1053,6 +1057,82 @@ UserRoleAssignment
 
 No authorization logic in the database layer.
 
+### Local Development Authentication
+
+> **Problem:** APIM is the authentication gateway in staging and production. Developers cannot run and test services locally without routing traffic through a deployed APIM instance. The architecture must define a local-dev path that eliminates this dependency.
+
+#### Two-Environment Auth Paths
+
+```
+[Dev]   Developer → Local Identity Stub → JWT (same claims) → Service (DevelopmentAuthHandler)
+[Prod]  User → APIM (SSO/OAuth) → JWT (same claims) → Service (JwtBearerHandler)
+```
+
+| Environment | Token Issuer | Token Validator | APIM Required? |
+|-------------|-------------|-----------------|----------------|
+| `Development` | Local identity stub (e.g. Keycloak or lightweight JWT issuer in Docker Compose) | `DevelopmentAuthenticationHandler` — validates JWT locally | ❌ No |
+| `Staging` / `Production` | Azure Entra ID (via APIM OIDC pipeline) | `JwtBearerHandler` — trusts APIM-validated tokens | ✅ Yes |
+
+#### Design Principles
+
+**Services are environment-agnostic.** A service validates the *claim shape* — not the token origin. The same `IAuthenticationProvider` interface is used in all environments; only the registered implementation differs:
+
+```csharp
+// Startup — environment-driven registration
+if (env.IsDevelopment())
+    services.AddAuthentication()
+            .AddScheme<AuthenticationSchemeOptions, DevelopmentAuthenticationHandler>(
+                "DevBearer", _ => { });
+else
+    services.AddJwtBearer();        // trusts APIM-validated tokens in staging/prod
+```
+
+**Local identity stub issues tokens with the same claim structure as APIM.** The stub is configured to embed identical claim names (`sub`, `roles`, `tenant_id`, `position_code`, etc.) so that any handler or middleware consuming claims works identically in both environments.
+
+**APIM URLs are injected via configuration — never hardcoded.** All service references to APIM endpoints (session validation URL, token introspection URL) come from:
+
+```json
+// appsettings.Development.json
+{
+  "Authentication": {
+    "Authority": "http://localhost:8080/realms/m2",
+    "Audience": "m2-api"
+  }
+}
+
+// appsettings.Production.json
+{
+  "Authentication": {
+    "Authority": "https://login.microsoftonline.com/{tenant}/v2.0",
+    "Audience": "api://{client-id}"
+  }
+}
+```
+
+No service assembly or code change is needed to move between environments — only configuration differs.
+
+#### Docker Compose — Local Identity Stub
+
+```yaml
+# docker-compose.override.yml (development only)
+identity-stub:
+  image: quay.io/keycloak/keycloak:24
+  command: start-dev --import-realm
+  ports:
+    - "8080:8080"
+  volumes:
+    - ./dev/keycloak/realm-export.json:/opt/keycloak/data/import/realm.json
+  environment:
+    KEYCLOAK_ADMIN: admin
+    KEYCLOAK_ADMIN_PASSWORD: admin
+```
+
+The realm export seeds test users with the same role/claim structure as production Entra ID tokens.
+
+#### Zero-Code-Change Deploy
+
+> ✅ This is a **zero-code-change deploy** between `Development` and `Staging`/`Production`. The only differences are `ASPNETCORE_ENVIRONMENT` and the `Authentication:*` config values. No `#if DEBUG` guards, no environment branches in business logic.
+
 ---
 
 ## 7. Container Architecture
@@ -1346,7 +1426,7 @@ public interface IPositionResolver
 }
 ```
 
-Built-in variables: `superior_of_requester`, `branch_manager_of_requester`, `department_head_of_requester`. Extensible via configuration.
+Built-in variables: `superior_of_requester`. Each value is a code-defined constant — see `IPositionResolver`.
 
 **Notifications:** On step activation (including group steps), the Notification Module in `M2.Platform.Api` dispatches approval requests to **all** eligible position holders simultaneously.
 
@@ -1375,6 +1455,156 @@ Platform.Notification (C# project, hosted in M2.Platform.Api)
 `M2.Platform.Api` hosts the SignalR Hub. Flutter apps register FCM tokens on login; the registry maps `UserId → FCMToken[]` to support multi-device. BFFs and Business.Api call notification logic via REST/HTTPS to Platform.Api.
 
 **Trade-off acknowledged:** Azure Notification Hubs was evaluated. It adds managed fan-out for large audiences but introduces additional Azure dependency and cost. For this system's scale (staff + managers), direct FCM is sufficient and simpler. Revisit if the promotions app grows to 100k+ concurrent users.
+
+### 8.4 Operation Behavior Pipeline
+
+> **Problem:** Each business operation (e.g., "Submit Purchase Order", "Approve Invoice") must compose cross-cutting behaviors: authorization check, approval workflow trigger, notification dispatch. Some operations need all three; some need only authorization. Without a systematic approach, each command handler duplicates this composition logic — making it inconsistent, hard to toggle, and difficult to extend.
+
+#### The Pipeline Pattern
+
+Inspired by MediatR `IPipelineBehavior<TRequest, TResponse>` (.NET). Every command/query enters the behavior chain in declaration order, with behaviors wrapping the handler by calling `await next()` to proceed inward:
+
+```
+Request → [AuthorizationBehavior] → [ApprovalBehavior] → Handler → [NotificationBehavior fires post-handler] → Response
+```
+
+Each behavior wraps the next, giving it control to short-circuit, enrich, or react to the response. `AuthorizationBehavior` and `ApprovalBehavior` are pre-handler gates; `NotificationBehavior` is a post-handler wrapper that calls `await next()` first and only notifies after the handler succeeds.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Incoming Request                                       │
+│      │                                                  │
+│      ▼                                                  │
+│  ┌───────────────────────┐                              │
+│  │  AuthorizationBehavior│  ← always runs first         │
+│  │  calls Platform.Api   │                              │
+│  │  /authz/check         │  → 403 if denied             │
+│  └──────────┬────────────┘                              │
+│             ▼                                           │
+│  ┌───────────────────────┐                              │
+│  │  ApprovalBehavior     │  ← runs if IRequiresApproval │
+│  │  calls Platform.Api   │                              │
+│  │  /approvals           │  → 202 Accepted if workflow  │
+│  └──────────┬────────────┘    created (handler skipped) │
+│             ▼                                           │
+│  ┌───────────────────────┐                              │
+│  │  Handler              │  ← executes business logic   │
+│  └──────────┬────────────┘                              │
+│             ▼                                           │
+│  ┌───────────────────────┐                              │
+│  │  NotificationBehavior │  ← runs after handler if     │
+│  │  calls Platform.Api   │    INotifiable present        │
+│  │  /notifications       │    fire-and-forget            │
+│  └───────────────────────┘                              │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Operation Metadata / Declaration
+
+Operations declare their behavior requirements via **C# marker interfaces** at compile time. Marker interface presence is the contract — if the interface is absent, the behavior skips via an `is not` check and calls `next()`.
+
+```csharp
+public interface IRequiresAuthorization { }
+
+public interface IRequiresApproval
+{
+    string ApprovalPolicy { get; }
+}
+
+public interface INotifiable
+{
+    string NotificationEvent { get; }
+}
+
+// Command declaring its required behaviors:
+public class SubmitCustomerMasterCommand
+    : IRequest<Result>,
+      IRequiresAuthorization,
+      IRequiresApproval,
+      INotifiable
+{
+    public string ApprovalPolicy => "CustomerMaster.New";
+    public string NotificationEvent => "CustomerMaster.Submitted";
+}
+```
+
+**Enforced vs. optional behaviors:**
+
+| Behavior | Type | What happens if marker absent |
+|----------|------|-------------------------------|
+| `IRequiresAuthorization` | **Enforced** — pipeline returns `Unauthorized` if check fails | Behavior skips (anonymous/public operation) |
+| `IRequiresApproval` | Conditional — marker absent → behavior skips via `is not` | Proceeds to handler immediately |
+| `INotifiable` | Conditional — marker absent → behavior skips via `is not` | No notification dispatched |
+
+> A command implementing `IRequiresAuthorization` **must** be authorized — the pipeline does not allow bypass. Authorization is the only unconditionally enforced behavior.
+
+> **Note (Option B — named pipeline profiles in JSON config):** A config-driven profile approach was considered but **not chosen**. Marker interfaces were selected for compile-time safety and strongly-typed policy contracts. Runtime enable/disable of existing behaviors is handled inside the cross-cutting service via `IFeatureFlagService` (see [Enable / Disable at Runtime](#enable--disable-at-runtime)).
+
+#### Behavior Registration
+
+Behaviors are registered in the DI container in fixed priority order:
+
+```csharp
+services.AddMediatR(cfg =>
+{
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));   // 1st — always
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ApprovalBehavior<,>));        // 2nd — conditional
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(NotificationBehavior<,>));    // 3rd — conditional post-handler wrapper
+});
+```
+
+Each behavior checks for its marker interface at runtime. Conditional behaviors skip via `is not`; the cross-cutting **service** owns the on/off decision — the behavior calls it unconditionally when the marker is present:
+
+```csharp
+public class ApprovalBehavior<TRequest, TResponse>
+    : IPipelineBehavior<TRequest, TResponse>
+{
+    public async Task<TResponse> Handle(TRequest request, HandlerDelegate next, CancellationToken ct)
+    {
+        if (request is not IRequiresApproval approvalRequest)
+            return await next(); // marker absent — skip
+
+        // Always call the service; it owns the on/off decision
+        var result = await _approvalService.EvaluateAsync(approvalRequest);
+
+        if (result == ApprovalResult.NotRequired)
+            return await next(); // service says: not applicable, proceed
+
+        if (result == ApprovalResult.Pending)
+            return Result.Pending("Awaiting approval"); // short-circuit
+
+        return await next(); // approved — proceed to handler
+    }
+}
+```
+
+#### Enable / Disable at Runtime
+
+The pipeline behavior calls the cross-cutting service **unconditionally** whenever the marker interface is present. Whether the service actually performs the action is determined **inside the service itself** via `IFeatureFlagService` backed by a DB table — the behavior does NOT inspect feature flags.
+
+| Granularity | Mechanism | Where decided |
+|-------------|-----------|---------------|
+| **Per-behavior type** (global) | `IFeatureFlagService` inside the service | Cross-cutting service (Platform.Api) |
+| **Per-operation** | `IFeatureFlagService` keyed by operation/policy | Cross-cutting service (Platform.Api) |
+| **Per-tenant** | Runtime config (DB or Azure App Configuration) | Cross-cutting service (Platform.Api) |
+
+`IApprovalService.EvaluateAsync(request)` internally checks feature flags and returns `ApprovalResult.NotRequired` when approval is disabled for a given operation or tenant. The behavior acts on the result — it does not inspect feature flags itself.
+
+#### Integration with Cross-Cutting Services
+
+| Behavior | Calls | Protocol |
+|----------|-------|----------|
+| `AuthorizationBehavior` | `Platform.Api` `/authz/check` | HTTPS REST (sync — must pass before handler) |
+| `ApprovalBehavior` | `Platform.Api` `/approvals` | HTTPS REST (sync — creates workflow; may return 202 before handler runs) |
+| `NotificationBehavior` | `Platform.Api` `/notifications` | HTTPS REST (fire-and-forget — runs after handler, failure does not roll back) |
+
+`NotificationBehavior` dispatches asynchronously (background `Task`) — a notification failure does not affect the operation result.
+
+#### Code-Change Constraint
+
+> ⚠️ **Adding a new behavior type requires a code change.** You must implement a new `IPipelineBehavior<TRequest, TResponse>`, register it in the pipeline, and define the marker interface contract. This is not configuration-only. Runtime toggling of *existing* behaviors via feature flags (inside the cross-cutting service) does not require a code change.
+
+> ⚠️ **Pipeline contract:** The pipeline guarantees that cross-cutting behaviors run — it does NOT decide whether a specific operation is subject to them. That decision belongs to the command (via marker interfaces) and to the cross-cutting service (via internal feature flags). Behaviors are the enforcement mechanism; services are the policy authority.
 
 ---
 

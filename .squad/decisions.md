@@ -334,6 +334,49 @@ Approval chain depth is **configurable (N-level)**. Admin defines the number of 
 
 ---
 
+### ADR-023: Architecture Corrections — Service Naming, SAP ACL, Approval Veto
+**Date:** 2026-06-04 | **Status:** Applied | **Author:** Keyser
+
+Three corrections applied directly to `docs/architecture/ARCHITECTURE.md`. All changes are authoritative; no further review required.
+
+#### Correction 1 — Service Rename (Comprehensive)
+
+**Decision:** Canonical service naming:
+
+| Service | Name | Port | Responsibility |
+|---------|------|------|---------------|
+| Domain modules | `M2.Business.Api` | :5100 | POS, Promotions, SAP Adapter |
+| Cross-cutting services | `M2.Platform.Api` | :5200 | Auth, Approval, Notification, API Key |
+
+Applied comprehensively across: docker-compose, BFF env vars, typed clients, container images, ACA app names, all diagrams, prose, projects table, secrets table.
+
+#### Correction 2 — SAP Adapter: Single ACL in M2.Business.Api
+
+**Decision:** SAP Adapter lives solely in `M2.Business.Api`. `M2.Platform.Api` must never connect to SAP directly; accesses SAP-sourced org data via `M2.Business.Api` REST endpoints only.
+
+**Interface:** `ISapOrgPort` on `M2.Business.Api`:
+```
+GET /modules/org/positions/{userId}/superior      ← superior_of_requester for approval workflows
+GET /modules/org/hierarchy/{userId}               ← org tree for authz context
+```
+
+**Trade-off:** Platform.Api adds ~0.2–1 ms ACA-internal DNS hop. Mitigation: 5-min `IMemoryCache` on Platform.Api.
+
+#### Correction 3 — Approval Rejection: Immediate Veto Model
+
+**Decision:** Replace permissive quorum logic with immediate veto:
+```
+ANY single eligible approver voting Reject = immediate veto
+← step (and document) rejected immediately
+← no further responses collected after first rejection
+```
+
+**Rationale:** Expected business behavior — rejection is a veto, not a vote.
+
+**Document changes:** ADR-004 prose, state machines, Quorum Logic section, `PositionGroup` enum comment all updated.
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus

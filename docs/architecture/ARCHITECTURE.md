@@ -30,9 +30,9 @@
 
 This platform is a **greenfield enterprise layer** built on top of an existing SAP system, delivering enriched digital capabilities across multiple applications — beginning with the POS system. The chosen architecture is a **Modular Monolith with explicit bounded contexts**, deployed as a container-first application behind a BFF (Backend for Frontend) per client. Each client (Meka Promotion App, Meka POS, M2 Portal) has its own BFF to ensure interface stability and independent evolution.
 
-**Current (Approved):** Cross-cutting platform services — Authorization, Approval, Notification, and API Key — are hosted within the `M2.Platform.Api` process alongside domain modules (POS, Promotion, SAP Adapter). BFFs communicate with all modules via REST/HTTPS to `M2.Platform.Api`.
+**Current (Approved):** Cross-cutting platform services — Authorization, Approval, Notification, and API Key — are hosted within the `M2.Business.Api` process alongside domain modules (POS, Promotion, SAP Adapter). BFFs communicate with all modules via REST/HTTPS to `M2.Business.Api`.
 
-**Proposed (ADR-002):** Cross-cutting services will be extracted to a new `M2.CrossCutting.Api` process (port :5200), separating operational profiles. Business domain modules (POS, Promotion, SAP Adapter) remain in `M2.Platform.Api`. The topology grows from 4 to 5 independent processes.
+**Proposed (ADR-002):** Cross-cutting services will be extracted to a new `M2.Platform.Api` process (port :5200), separating operational profiles. Business domain modules (POS, Promotion, SAP Adapter) remain in `M2.Business.Api`. The topology grows from 4 to 5 independent processes.
 
 **Proposed (ADR-003):** Authentication evolves from stateless JWT-only (Azure Entra ID hard-coupled) to a stateful session model with Redis-backed revocation and an `IAuthenticationProvider` abstraction supporting any OIDC/OAuth2-compliant identity provider.
 
@@ -76,7 +76,7 @@ We are building a greenfield enterprise platform that:
 **Verdict for this context:** Premature. The team has not yet established domain boundaries through working software. Microservices require operational maturity that does not yet exist here. The distributed systems tax — retries, eventual consistency, distributed tracing, saga orchestration — would dominate early sprints and delay business value delivery.
 
 #### Option B: Modular Monolith (Chosen)
-**Description:** Platform Core (`M2.Platform.Api`) is an independent process; each BFF is its own independent process. Internal module boundaries within `M2.Platform.Api` are enforced by code structure. BFFs communicate with Platform.Api via **HTTPS REST with `X-Api-Key`** — not in-process. Each module owns its own data model within a shared database (schema-per-module or table-prefix separation).
+**Description:** Platform Core (`M2.Business.Api`) is an independent process; each BFF is its own independent process. Internal module boundaries within `M2.Business.Api` are enforced by code structure. BFFs communicate with Business.Api via **HTTPS REST with `X-Api-Key`** — not in-process. Each module owns its own data model within a shared database (schema-per-module or table-prefix separation).
 
 | Gain | Cost |
 |------|------|
@@ -111,7 +111,7 @@ The architecture is **decomposition-ready**: every bounded context has an interf
 - Internal module boundaries **must** be enforced via C# project references (a module may not directly call another module's internal types — only its public interface)
 - Each module has its own EF Core `DbContext` or `ModelBuilder` configuration — no cross-module entity navigation
 - Cross-module communication is via injected interfaces, **never** direct class instantiation across boundaries
-- BFF projects call `M2.Platform.Api` via typed HTTP clients (`IXxxModuleClient`) configured in `M2.Infrastructure/InterModule/` — they do not reach into domain internals. Communication is HTTPS REST with `X-Api-Key` header.
+- BFF projects call `M2.Business.Api` via typed HTTP clients (`IXxxModuleClient`) configured in `M2.Infrastructure/InterModule/` — they do not reach into domain internals. Communication is HTTPS REST with `X-Api-Key` header.
 - When a module grows beyond the team's comfort: extract it into a standalone service behind the same interface — no BFF changes required
 - Team must review module boundaries quarterly and make explicit decisions to keep or extract
 
@@ -123,7 +123,7 @@ The architecture is **decomposition-ready**: every bounded context has an interf
 
 #### Context
 
-`M2.Platform.Api` currently hosts two fundamentally different categories of concern in a single process:
+`M2.Business.Api` currently hosts two fundamentally different categories of concern in a single process:
 
 - **Domain modules** (POS, Promotion, SAP Adapter) — business logic tied to specific bounded contexts; change with feature delivery cadence; schema-heavy; tightly coupled to PostgreSQL writes.
 - **Cross-cutting modules** (Authorization, Approval, Notification, API Key) — infrastructure services consumed by all domain modules and all BFFs; change on a different lifecycle (security patches, operational improvements); often read-heavy with aggressive caching.
@@ -140,15 +140,15 @@ The risk of co-location: a destabilizing change to a domain module (e.g., a migr
 | Simpler config, single container | Cannot scale cross-cutting services independently |
 | No inter-service latency | Cannot evolve auth/approval independently of domain releases |
 
-**Option B: Extract Cross-Cutting to `M2.CrossCutting.Api` (Proposed)**
+**Option B: Extract Cross-Cutting to `M2.Platform.Api` (Proposed)**
 
 | Gain | Cost |
 |------|------|
 | Failure isolation — domain crash cannot destabilize auth/approval | One additional process; one additional container; one additional port |
-| Independent scaling (auth may need more replicas than POS module) | `Platform.Api` must call `CrossCutting.Api` for permission checks — adds one network hop (~0.2–1 ms localhost / ACA-internal) |
+| Independent scaling (auth may need more replicas than POS module) | `Business.Api` must call `Platform.Api` for permission checks — adds one network hop (~0.2–1 ms localhost / ACA-internal) |
 | Independent deployment lifecycle | BFFs must be configured with two base URLs instead of one |
-| Clear operational boundary for security review | Requires `CrossCutting.InterModule` typed HTTP client layer |
-| Cross-cutting services are consumed by all 3 BFFs and Platform.Api — centralising them in a dedicated process prevents duplication | |
+| Clear operational boundary for security review | Requires `Platform.InterModule` typed HTTP client layer |
+| Cross-cutting services are consumed by all 3 BFFs and Business.Api — centralising them in a dedicated process prevents duplication | |
 
 **Option C: Full Microservices (one process per module)**
 
@@ -161,14 +161,14 @@ The risk of co-location: a destabilizing change to a domain module (e.g., a migr
 
 #### Decision
 
-**Extract cross-cutting modules to `M2.CrossCutting.Api`** running on port **:5200**.
+**Extract cross-cutting modules to `M2.Platform.Api`** running on port **:5200**.
 
-**`M2.Platform.Api` (port :5100) hosts:**
+**`M2.Business.Api` (port :5100) hosts:**
 - POS Module
 - Promotion Module
 - SAP Adapter Module
 
-**`M2.CrossCutting.Api` (port :5200) hosts:**
+**`M2.Platform.Api` (port :5200) hosts:**
 - Authorization Module
 - Approval Module
 - Notification Module
@@ -178,25 +178,53 @@ The risk of co-location: a destabilizing change to a domain module (e.g., a migr
 
 | Caller | Target | Transport | Auth |
 |--------|--------|-----------|------|
-| BFF → Platform.Api | Domain modules | HTTPS REST | `X-Api-Key` |
-| BFF → CrossCutting.Api | Auth checks, approvals, notifications | HTTPS REST | `X-Api-Key` |
-| Platform.Api → CrossCutting.Api | Permission evaluation, approval triggers | HTTPS REST | `X-Internal-Secret` header |
-| CrossCutting.Api → DB | Authorization objects, approval workflows | EF Core / TCP | PostgreSQL connection string |
+| BFF → Business.Api | Domain modules | HTTPS REST | `X-Api-Key` |
+| BFF → Platform.Api | Auth checks, approvals, notifications | HTTPS REST | `X-Api-Key` |
+| Business.Api → Platform.Api | Permission evaluation, approval triggers | HTTPS REST | `X-Internal-Secret` header |
+| Platform.Api → DB | Authorization objects, approval workflows | EF Core / TCP | PostgreSQL connection string |
 
 BFFs configure two HTTP base URLs:
 ```
-Platform__BaseUrl=https://platform-api:8080      # domain modules
-CrossCutting__BaseUrl=https://crosscutting-api:8080   # auth, approval, notification
+Business__BaseUrl=https://business-api:8080      # domain modules
+Platform__BaseUrl=https://platform-api:8080   # auth, approval, notification
 ```
 
 #### Consequences
 
-- `M2.CrossCutting.Api` is a new ASP.NET Core 9 process, same tech stack
-- `M2.Infrastructure/CrossCuttingModule/` or a new `M2.CrossCutting.Infrastructure` project provides typed clients
-- All three BFFs add `CrossCutting:BaseUrl` and `CrossCutting:ApiKey` config values
-- `M2.Platform.Api` registers a typed `ICrossCuttingModuleClient` for inbound permission checks before executing domain mutations
-- Migration path: module endpoint registrations move from `M2.Platform.Api/Program.cs` to `M2.CrossCutting.Api/Program.cs` — no domain logic changes required
-- **ACA topology:** `crosscutting-api` container app with internal ingress; `platform-api` calls it via ACA-internal DNS
+- `M2.Platform.Api` is a new ASP.NET Core 9 process, same tech stack
+- `M2.Infrastructure/CrossCuttingModule/` or a new `M2.Platform.Infrastructure` project provides typed clients
+- All three BFFs add `Platform:BaseUrl` and `Platform:ApiKey` config values
+- `M2.Business.Api` registers a typed `IPlatformModuleClient` for inbound permission checks before executing domain mutations
+- Migration path: module endpoint registrations move from `M2.Business.Api/Program.cs` to `M2.Platform.Api/Program.cs` — no domain logic changes required
+- **ACA topology:** `platform-api` container app with internal ingress; `business-api` calls it via ACA-internal DNS
+
+#### SAP Adapter: Single ACL in M2.Business.Api
+
+The SAP Adapter is a **domain concern** — it translates SAP business objects into platform domain types. It lives in `M2.Business.Api` as a module and is the **single SAP connection point** for the entire platform.
+
+**Decision:** `M2.Platform.Api` (cross-cutting services) must **never** connect to SAP directly. Any SAP-sourced data required by cross-cutting services (org hierarchy for position resolution in approval workflows; org chart for authorization checks) is obtained by calling `M2.Business.Api` REST endpoints:
+
+```
+M2.Platform.Api accesses SAP-sourced data via:
+  GET /modules/org/positions/{userId}/superior    ← ISapOrgPort on Business.Api (for superior_of_requester resolution)
+  GET /modules/org/hierarchy/{userId}             ← org tree for authorization context
+```
+
+**Why this allocation:**
+
+| Concern | Business.Api | Platform.Api |
+|---------|-------------|-------------|
+| SAP Adapter (ACL) | ✅ Owns — domain concern; translates SAP business objects | ❌ Never — no direct SAP connection |
+| Org/position queries | Exposes via `ISapOrgPort` REST endpoints | Calls Business.Api REST — one network hop (~0.2–1 ms ACA-internal) |
+| Authorization org data | Source of truth | Consumer via REST |
+| Approval position resolution | Source of truth (`superior_of_requester`) | Consumer via REST |
+
+**Trade-off:**
+- ✅ Single SAP ACL: one translation layer, one connection pool, one Polly circuit breaker
+- ✅ Clear ownership: Business.Api is the sole SAP authority
+- ⚠️ Platform.Api adds one internal network hop for org data — acceptable (~0.2–1 ms ACA-internal DNS)
+- ⚠️ If Business.Api is unavailable, Platform.Api cannot resolve dynamic approver positions — approval *submission* is blocked until Business.Api recovers
+- **Mitigation:** Cache resolved position data in Platform.Api `IMemoryCache` (5 min TTL) to tolerate brief Business.Api unavailability without blocking ongoing workflows
 
 ---
 
@@ -250,7 +278,7 @@ Required capabilities:
 
 #### Decision
 
-**Adopt stateful authentication with Redis-backed opaque session tokens**, hosted in `M2.CrossCutting.Api` (per ADR-002) as the Auth Service module.
+**Adopt stateful authentication with Redis-backed opaque session tokens**, hosted in `M2.Platform.Api` (per ADR-002) as the Auth Service module.
 
 #### Session Token Design
 
@@ -307,7 +335,7 @@ sequenceDiagram
     participant App as Flutter App / Blazor Portal
     participant APIGW as Azure API Management
     participant BFF as BFF
-    participant AuthSvc as CrossCutting.Api — Auth Service
+    participant AuthSvc as Platform.Api — Auth Service
     participant IdP as IAuthenticationProvider (e.g. Entra ID)
     participant Redis as Redis Session Store
 
@@ -348,7 +376,7 @@ Maintained alongside the primary session key. `revoke-all` deletes the set and e
 
 #### SSO Across BFFs
 
-Single session token issued by `CrossCutting.Api` is valid for all three BFFs. APIM validates the session token against `CrossCutting.Api` on every request regardless of which BFF the request targets. The session payload includes a `scope` or `apps` claim if per-app restrictions are required in future.
+Single session token issued by `Platform.Api` is valid for all three BFFs. APIM validates the session token against `Platform.Api` on every request regardless of which BFF the request targets. The session payload includes a `scope` or `apps` claim if per-app restrictions are required in future.
 
 ```
 User logs in via MekaPosBff
@@ -361,22 +389,22 @@ User logs in via MekaPosBff
 
 | Before (ADR-003) | After (ADR-003) |
 |------------------|-----------------|
-| APIM validates JWT signature locally (Entra ID JWKS) | APIM calls `GET /auth/sessions/{token}` on CrossCutting.Api |
+| APIM validates JWT signature locally (Entra ID JWKS) | APIM calls `GET /auth/sessions/{token}` on Platform.Api |
 | Token validity = cryptographic + expiry | Token validity = Redis key existence + TTL |
 | No revocation | Revocation propagates in < 1 s |
 | Entra ID hard-coupled | Any `IAuthenticationProvider` implementation |
 
-**APIM policy change:** Replace `validate-jwt` policy with `send-request` policy to CrossCutting.Api `/auth/sessions/{token}`. Cache the validation response in APIM cache for 30 s (configurable) to reduce Redis load on high-traffic paths.
+**APIM policy change:** Replace `validate-jwt` policy with `send-request` policy to Platform.Api `/auth/sessions/{token}`. Cache the validation response in APIM cache for 30 s (configurable) to reduce Redis load on high-traffic paths.
 
 #### Consequences
 
 - Redis becomes a required infrastructure dependency (ACA sidecar or Azure Cache for Redis)
-- `CrossCutting.Api` owns the session store; it is the single point of auth truth for the platform
+- `Platform.Api` owns the session store; it is the single point of auth truth for the platform
 - All three BFFs remove `Microsoft.Identity.Web` JWT middleware from request pipeline; they receive pre-validated user context from APIM-injected headers
 - `EntraIdAuthenticationProvider` preserves current IdP without behaviour change — migration is a config toggle
 - Session token must be transmitted as `HttpOnly; Secure` cookie (web) or `Authorization: Bearer {token}` header (mobile) — opaque to client either way
 - APIM validation policy adds ~1–2 ms latency on first lookup per 30 s window (cached thereafter)
-- Auth module EF schema (`auth.*`) added to CrossCutting.Api's database partition
+- Auth module EF schema (`auth.*`) added to Platform.Api's database partition
 
 ---
 
@@ -492,7 +520,7 @@ public enum ApproverType
     /// <summary>A position resolved dynamically at workflow start time via IPositionResolver.</summary>
     VariablePosition,
 
-    /// <summary>A set of eligible positions; step advances when MinApprovers responses are Approved.</summary>
+    /// <summary>A set of eligible positions; step advances when MinApprovers responses are Approved. ANY single rejection is an immediate veto.</summary>
     PositionGroup
 }
 ```
@@ -539,12 +567,12 @@ For `PositionGroup` steps:
 
 ```
 ApprovedCount  = count of ApprovalStepResponse where Decision = Approved  (for this step)
-RejectedCount  = count of ApprovalStepResponse where Decision = Rejected  (for this step)
 TotalEligible  = count of EligiblePositionCodes
 
 Step advances when:  ApprovedCount >= MinApprovers
-Step fails when:     RejectedCount > (TotalEligible - MinApprovers)
-                     ← mathematically impossible to reach quorum even if all remaining approve
+Rejection:           ANY single eligible approver voting Reject = immediate veto
+                     ← step (and document) rejected immediately regardless of MinApprovers
+                     ← no further responses collected after first rejection
 ```
 
 All quorum evaluation is in `ApprovalStepEvaluator` — a single deterministic, unit-testable class. No quorum logic in controllers or workflow engine dispatcher.
@@ -560,20 +588,19 @@ stateDiagram-v2
         [*] --> StepN_Pending : ActivateStep(N)
 
         state StepN_Pending {
-            [*] --> AwaitingResponse
-            note right of AwaitingResponse
-                FixedPosition: 1 approver required
-                VariablePosition: resolved approver required
-                PositionGroup: awaiting MinApprovers of M
-            end note
-            AwaitingResponse --> QuorumReached : ApprovedCount >= MinApprovers
-            AwaitingResponse --> QuorumFailed  : RejectedCount > (Total - MinApprovers)
-            AwaitingResponse --> SingleRejected : Reject() [FixedPosition | VariablePosition]
-        }
+                [*] --> AwaitingResponse
+                note right of AwaitingResponse
+                    FixedPosition: 1 approver required
+                    VariablePosition: resolved approver required
+                    PositionGroup: awaiting MinApprovers of M
+                    Veto: ANY single Reject = immediate rejection
+                end note
+                AwaitingResponse --> QuorumReached : ApprovedCount >= MinApprovers
+                AwaitingResponse --> StepVetoed    : AnyVotedReject() [immediate veto — all types]
+            }
 
-        QuorumReached --> StepN_Approved
-        QuorumFailed  --> StepN_Rejected
-        SingleRejected --> StepN_Rejected
+            QuorumReached --> StepN_Approved
+            StepVetoed    --> StepN_Rejected
 
         StepN_Approved --> StepN1_Pending : HasNextStep
         StepN_Approved --> FinalApproved  : IsLastStep
@@ -609,7 +636,7 @@ stateDiagram-v2
 
 ## 3. System Context Diagram
 
-> **Note (ADR-002 Proposal):** The diagram below reflects the proposed split into `M2.Platform.Api` (domain) + `M2.CrossCutting.Api` (cross-cutting). The current approved state is a single `Platform Core` process.
+> **Note (ADR-002 Proposal):** The diagram below reflects the proposed split into `M2.Business.Api` (domain) + `M2.Platform.Api` (cross-cutting). The current approved state is a single `Platform Core` process.
 
 ```mermaid
 C4Context
@@ -624,8 +651,8 @@ C4Context
         System(mekaPosBFF, "Meka POS BFF", "ASP.NET Core — Staff-facing API gateway")
         System(mekaPromosBFF, "Meka Promotions BFF", "ASP.NET Core — Customer-facing API gateway")
         System(m2PortalBFF, "M2 Portal BFF", "ASP.NET Core — Admin/Manager API gateway")
-        System(platformApi, "M2.Platform.Api", "Domain modules: POS, Promotion, SAP Adapter")
-        System(crossCuttingApi, "M2.CrossCutting.Api", "Cross-cutting: Auth, Approval, Notification, API Key — stateful session store")
+        System(platformApi, "M2.Business.Api", "Domain modules: POS, Promotion, SAP Adapter")
+        System(crossCuttingApi, "M2.Platform.Api", "Cross-cutting: Auth, Approval, Notification, API Key — stateful session store")
     }
 
     System_Ext(sap, "SAP ERP", "Existing enterprise system — master data, FI, inventory")
@@ -666,7 +693,7 @@ C4Context
 
 ```mermaid
 C4Component
-    title Component Diagram — Platform (ADR-002 Proposed: Platform.Api + CrossCutting.Api)
+    title Component Diagram — Platform (ADR-002 Proposed: Business.Api + Platform.Api)
 
     Container_Boundary(bffs, "BFF Layer") {
         Component(posBFF, "Meka POS BFF", "ASP.NET Core", "Staff APIs: transactions, clock-in, goods receipt")
@@ -674,13 +701,13 @@ C4Component
         Component(m2BFF, "M2 Portal BFF", "ASP.NET Core", "Admin APIs: promotion management, approval workflows")
     }
 
-    Container_Boundary(core, "M2.Platform.Api — Domain Modules :5100") {
+    Container_Boundary(core, "M2.Business.Api — Domain Modules :5100") {
         Component(posModule, "POS Module", "C# Domain", "Sales transactions, void, return, clock-in, goods receipt")
         Component(promotionModule, "Promotion Module", "C# Domain", "Promotion formula definition, discount calculation, member management")
         Component(sapAdapter, "SAP Adapter Module", "C# Anti-Corruption Layer", "SAP RFC/BAPI calls, data mapping, retry")
     }
 
-    Container_Boundary(cc, "M2.CrossCutting.Api — Cross-Cutting Services :5200") {
+    Container_Boundary(cc, "M2.Platform.Api — Cross-Cutting Services :5200") {
         Component(authzModule, "Authorization Module", "C# Cross-cutting", "SAP-style authorization objects, permission evaluation")
         Component(approvalModule, "Approval Module", "C# Cross-cutting", "Sequential approval workflows — enhanced approver model (ADR-004)")
         Component(notifModule, "Notification Module", "C# Cross-cutting", "Real-time push — SignalR hub + FCM/APNs dispatcher")
@@ -718,11 +745,14 @@ C4Component
     Rel(authzModule, appDb, "Reads authorization objects")
     Rel(apiKeyModule, appDb, "Reads/Writes hashed keys")
     Rel(authSvc, redisStore, "Session CRUD + revocation")
+
+    Rel(approvalModule, sapAdapter, "Uses ISapOrgPort (position/hierarchy resolution)", "HTTPS REST via Business.Api")
+    Rel(authzModule, sapAdapter, "Uses ISapOrgPort (org context for auth checks)", "HTTPS REST via Business.Api")
 ```
 
 ### Deployment Topology (ADR-002 Proposed — 5 Processes)
 
-> **Approved baseline:** 4 processes (ADR-001). The topology below reflects the ADR-002 proposal to add `M2.CrossCutting.Api` as a fifth independent process.
+> **Approved baseline:** 4 processes (ADR-001). The topology below reflects the ADR-002 proposal to add `M2.Platform.Api` as a fifth independent process.
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -735,7 +765,7 @@ C4Component
    │ calls     │ approval │ calls     │ approval │ calls     │ approval
    ▼           ▼          ▼           ▼          ▼           ▼
 ┌─────────────────────┐     ┌──────────────────────────┐
-│   M2.Platform.Api   │────▶│   M2.CrossCutting.Api    │
+│   M2.Business.Api   │────▶│   M2.Platform.Api    │
 │   (domain modules)  │ perm│   (cross-cutting svcs)   │
 │   :5100             │check│   :5200                  │
 │                     │     │                          │
@@ -758,8 +788,8 @@ C4Component
 
 | Project | Role | Port |
 |---------|------|------|
-| `M2.Platform.Api` | Domain modules: POS, Promotion, SAP Adapter | 5100 |
-| `M2.CrossCutting.Api` | Cross-cutting: Auth Service, Authorization, Approval, Notification, API Key *(ADR-002 Proposal)* | 5200 |
+| `M2.Business.Api` | Domain modules: POS, Promotion, SAP Adapter | 5100 |
+| `M2.Platform.Api` | Cross-cutting: Auth Service, Authorization, Approval, Notification, API Key *(ADR-002 Proposal)* | 5200 |
 | `M2.MekaPosBff` | BFF for Flutter POS staff app | 5000 |
 | `M2.MekaPromosBff` | BFF for Flutter member/promos app | 5001 |
 | `M2.M2PortalBff` | BFF for Blazor manager/admin portal | 5002 |
@@ -772,22 +802,22 @@ C4Component
 
 | Direction | Transport | Auth |
 |-----------|-----------|------|
+| BFF → Business.Api | HTTPS REST | `X-Api-Key` header — validated by `ApiKeyMiddleware` on Business.Api |
 | BFF → Platform.Api | HTTPS REST | `X-Api-Key` header — validated by `ApiKeyMiddleware` on Platform.Api |
-| BFF → CrossCutting.Api | HTTPS REST | `X-Api-Key` header — validated by `ApiKeyMiddleware` on CrossCutting.Api |
-| Platform.Api → CrossCutting.Api | HTTPS REST | `X-Internal-Secret` header — intra-platform calls for permission evaluation |
-| APIM → CrossCutting.Api | HTTPS REST | Internal network call — session token validation |
-| Platform.Api → DB | EF Core / TCP | PostgreSQL connection string |
-| CrossCutting.Api → DB | EF Core / TCP | PostgreSQL connection string (separate schema partitions) |
-| CrossCutting.Api → Redis | Redis protocol | Connection string (Azure Cache for Redis) |
-| Platform.Api → SAP | HTTPS OData / RFC-over-VPN | SAP credentials |
+| Business.Api → Platform.Api | HTTPS REST | `X-Internal-Secret` header — intra-platform calls for permission evaluation |
+| APIM → Platform.Api | HTTPS REST | Internal network call — session token validation |
+| Business.Api → DB | EF Core / TCP | PostgreSQL connection string |
+| Platform.Api → DB | EF Core / TCP | PostgreSQL connection string (separate schema partitions) |
+| Platform.Api → Redis | Redis protocol | Connection string (Azure Cache for Redis) |
+| Business.Api → SAP | HTTPS OData / RFC-over-VPN | SAP credentials |
 
 ### Module Endpoints
 
-Domain modules are served at `/modules/{name}/` on `M2.Platform.Api`. Cross-cutting service endpoints are served on `M2.CrossCutting.Api` (e.g., `/auth/sessions`, `/authz/evaluate`, `/approvals/`, `/notifications/`, `/api-keys/`).
+Domain modules are served at `/modules/{name}/` on `M2.Business.Api`. Cross-cutting service endpoints are served on `M2.Platform.Api` (e.g., `/auth/sessions`, `/authz/evaluate`, `/approvals/`, `/notifications/`, `/api-keys/`).
 
 BFFs call both services via typed HTTP clients registered in `M2.Infrastructure/InterModule/`:
-- `IPlatformModuleClient` — base URL from `Platform:BaseUrl` (default `https://localhost:5100`)
-- `ICrossCuttingModuleClient` — base URL from `CrossCutting:BaseUrl` (default `https://localhost:5200`)
+- `IBusinessModuleClient` — base URL from `Business:BaseUrl` (default `https://localhost:5100`)
+- `IPlatformModuleClient` — base URL from `Platform:BaseUrl` (default `https://localhost:5200`)
 
 Both clients attach the appropriate `X-Api-Key` header from their respective config keys.
 
@@ -878,7 +908,7 @@ sequenceDiagram
 
 ### Proposed (ADR-003): Stateful Session Authentication
 
-Authentication is handled by the **Auth Service module** inside `M2.CrossCutting.Api`. The identity provider is abstracted behind `IAuthenticationProvider` — Entra ID remains the default implementation.
+Authentication is handled by the **Auth Service module** inside `M2.Platform.Api`. The identity provider is abstracted behind `IAuthenticationProvider` — Entra ID remains the default implementation.
 
 #### Login Flow
 
@@ -887,7 +917,7 @@ sequenceDiagram
     participant App as Flutter App / Blazor Portal
     participant APIGW as Azure API Management
     participant BFF as BFF
-    participant AuthSvc as CrossCutting.Api — Auth Service
+    participant AuthSvc as Platform.Api — Auth Service
     participant IdP as IAuthenticationProvider (Entra ID default)
     participant Redis as Redis Session Store
 
@@ -909,10 +939,10 @@ sequenceDiagram
 sequenceDiagram
     participant App as App
     participant APIGW as Azure API Management
-    participant AuthSvc as CrossCutting.Api — Auth Service
+    participant AuthSvc as Platform.Api — Auth Service
     participant Redis as Redis Session Store
     participant BFF as BFF
-    participant PlatformApi as M2.Platform.Api
+    participant PlatformApi as M2.Business.Api
 
     App->>APIGW: 1. GET /api/v1/sales  Cookie: session_token=…
     APIGW->>AuthSvc: 2. GET /auth/sessions/{token}  (cached 30 s in APIM)
@@ -1015,11 +1045,11 @@ UserRoleAssignment
 
 | Layer | Responsibility |
 |-------|---------------|
-| **Azure API Management** | Session token validation (calls CrossCutting.Api `/auth/sessions/{token}`); API key format validation; rate limiting |
-| **CrossCutting.Api — Auth Service** | Session issuance, revocation, storage (Redis); `IAuthenticationProvider` delegation to IdP |
+| **Azure API Management** | Session token validation (calls Platform.Api `/auth/sessions/{token}`); API key format validation; rate limiting |
+| **Platform.Api — Auth Service** | Session issuance, revocation, storage (Redis); `IAuthenticationProvider` delegation to IdP |
 | **BFF Middleware** | User context extraction from APIM-injected headers (`x-user-id`, `x-user-claims`); request shaping |
-| **CrossCutting.Api — Authorization Module** | Business-level permission evaluation (SAP auth objects); cached 5 min in IMemoryCache |
-| **M2.Platform.Api — Domain Modules** | Domain-specific guards (e.g., cannot void a transaction you didn't create) |
+| **Platform.Api — Authorization Module** | Business-level permission evaluation (SAP auth objects); cached 5 min in IMemoryCache |
+| **M2.Business.Api — Domain Modules** | Domain-specific guards (e.g., cannot void a transaction you didn't create) |
 
 No authorization logic in the database layer.
 
@@ -1034,12 +1064,12 @@ No authorization logic in the database layer.
 | Meka POS BFF | `pos/meka-pos-bff` | ASP.NET Core, port 5000 |
 | Meka Promotions BFF | `pos/meka-promos-bff` | ASP.NET Core, port 5001 |
 | M2 Portal BFF | `pos/m2-portal-bff` | ASP.NET Core, port 5002 |
-| Platform API (`M2.Platform.Api`) | `pos/m2-platform-api` | ASP.NET Core, port 5100 — domain modules |
-| CrossCutting API (`M2.CrossCutting.Api`) | `pos/m2-crosscutting-api` | ASP.NET Core, port 5200 — Auth, Approval, Notification, API Key *(ADR-002 Proposal)* |
+| Business API (`M2.Business.Api`) | `pos/m2-business-api` | ASP.NET Core, port 5100 — domain modules |
+| Platform API (`M2.Platform.Api`) | `pos/m2-platform-api` | ASP.NET Core, port 5200 — Auth, Approval, Notification, API Key *(ADR-002 Proposal)* |
 | Database | PostgreSQL | Vol-mounted in dev |
 | Redis | `redis:7-alpine` | Session store (ADR-003 Proposal); vol-mounted in dev |
-| SAP Adapter | Part of Platform API container | Isolated by module boundary |
-| SignalR Notification Hub | Hosted in CrossCutting.Api | See §8 |
+| SAP Adapter | Part of Business.Api container | Isolated by module boundary — single ACL (see ADR-002 SAP note) |
+| SignalR Notification Hub | Hosted in Platform.Api | See §8 |
 
 **Base Image:** `mcr.microsoft.com/dotnet/aspnet:9.0-alpine` for runtime; `mcr.microsoft.com/dotnet/sdk:9.0` for build stage.
 
@@ -1049,8 +1079,8 @@ All images are multi-stage builds. Final images contain no SDK tooling.
 
 ```yaml
 # docker-compose.yml (abbreviated — see full file in /docker/)
-# ADR-002 Proposal: adds crosscutting-api service
-# ADR-003 Proposal: adds redis service; BFFs gain CrossCutting__BaseUrl config
+# ADR-002 Proposal: adds platform-api service
+# ADR-003 Proposal: adds redis service; BFFs gain Platform__BaseUrl config
 version: "3.9"
 
 services:
@@ -1061,11 +1091,11 @@ services:
     ports: ["5000:8080"]
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - Platform__BaseUrl=http://platform-api:8080
-      - Platform__ApiKey=${PLATFORM_API_KEY}
-      - CrossCutting__BaseUrl=http://crosscutting-api:8080    # ADR-002
-      - CrossCutting__ApiKey=${CROSSCUTTING_API_KEY}          # ADR-002
-    depends_on: [platform-api, crosscutting-api]
+      - Business__BaseUrl=http://business-api:8080
+      - Business__ApiKey=${BUSINESS_API_KEY}
+      - Platform__BaseUrl=http://platform-api:8080    # ADR-002
+      - Platform__ApiKey=${PLATFORM_API_KEY}          # ADR-002
+    depends_on: [business-api, platform-api]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
@@ -1078,11 +1108,11 @@ services:
       dockerfile: src/MekaPromosBff/Dockerfile
     ports: ["5001:8080"]
     environment:
+      - Business__BaseUrl=http://business-api:8080
+      - Business__ApiKey=${BUSINESS_API_KEY}
       - Platform__BaseUrl=http://platform-api:8080
       - Platform__ApiKey=${PLATFORM_API_KEY}
-      - CrossCutting__BaseUrl=http://crosscutting-api:8080
-      - CrossCutting__ApiKey=${CROSSCUTTING_API_KEY}
-    depends_on: [platform-api, crosscutting-api]
+    depends_on: [business-api, platform-api]
 
   m2-portal-bff:
     build:
@@ -1090,40 +1120,40 @@ services:
       dockerfile: src/M2PortalBff/Dockerfile
     ports: ["5002:8080"]
     environment:
+      - Business__BaseUrl=http://business-api:8080
+      - Business__ApiKey=${BUSINESS_API_KEY}
       - Platform__BaseUrl=http://platform-api:8080
       - Platform__ApiKey=${PLATFORM_API_KEY}
-      - CrossCutting__BaseUrl=http://crosscutting-api:8080
-      - CrossCutting__ApiKey=${CROSSCUTTING_API_KEY}
-    depends_on: [platform-api, crosscutting-api]
+    depends_on: [business-api, platform-api]
 
-  platform-api:
+  business-api:
     build:
       context: .
-      dockerfile: src/Platform.Api/Dockerfile
+      dockerfile: src/Business.Api/Dockerfile
     ports: ["5100:8080"]
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__AppDb=${DB_CONNECTION_STRING}
-      - Platform__ApiKey=${PLATFORM_API_KEY}
-      - CrossCutting__BaseUrl=http://crosscutting-api:8080    # ADR-002: permission checks
-      - CrossCutting__InternalSecret=${INTERNAL_SECRET}       # ADR-002: X-Internal-Secret
-    depends_on: [db, crosscutting-api]
+      - Business__ApiKey=${BUSINESS_API_KEY}
+      - Platform__BaseUrl=http://platform-api:8080    # ADR-002: permission checks
+      - Platform__InternalSecret=${INTERNAL_SECRET}       # ADR-002: X-Internal-Secret
+    depends_on: [db, platform-api]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 3
 
-  crosscutting-api:                                           # ADR-002 NEW SERVICE
+  platform-api:                                           # ADR-002 NEW SERVICE
     build:
       context: .
-      dockerfile: src/CrossCutting.Api/Dockerfile
+      dockerfile: src/Platform.Api/Dockerfile
     ports: ["5200:8080"]
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__AppDb=${DB_CONNECTION_STRING}
-      - CrossCutting__ApiKey=${CROSSCUTTING_API_KEY}
-      - CrossCutting__InternalSecret=${INTERNAL_SECRET}
+      - Platform__ApiKey=${PLATFORM_API_KEY}
+      - Platform__InternalSecret=${INTERNAL_SECRET}
       - Redis__ConnectionString=redis:6379                    # ADR-003: session store
       - Authentication__Provider=EntraId                      # ADR-003: pluggable IdP
       - Entra__TenantId=${ENTRA_TENANT_ID}
@@ -1174,11 +1204,11 @@ volumes:
 | `meka-pos-bff` | External (via APIM) | 1 / 10 | |
 | `meka-promos-bff` | External (via APIM) | 1 / 10 | |
 | `m2-portal-bff` | External (via APIM) | 1 / 10 | |
-| `m2-platform-api` | Internal | 1 / 10 | Domain modules — internal ACA DNS only |
-| `m2-crosscutting-api` | Internal | 2 / 20 | Auth/session path is on every request; higher min replicas; *(ADR-002 Proposal)* |
+| `m2-business-api` | Internal | 1 / 10 | Domain modules — internal ACA DNS only |
+| `m2-platform-api` | Internal | 2 / 20 | Auth/session path is on every request; higher min replicas; *(ADR-002 Proposal)* |
 
 - CPU: 0.5 vCPU / Memory: 1Gi (starting point, tune per load test)
-- CrossCutting.Api may warrant 1 vCPU / 2Gi given session validation on every request
+- Platform.Api may warrant 1 vCPU / 2Gi given session validation on every request
 - Managed Identity for Key Vault access (no secrets in env vars in production)
 - **Azure Cache for Redis** (Basic C1 dev, Standard C2 production) for ADR-003 session store
 
@@ -1207,19 +1237,19 @@ Implemented via `Microsoft.Extensions.Diagnostics.HealthChecks` with database co
 
 ## 8. Cross-Cutting Services Design
 
-> **ADR-002 Proposal Note:** All modules in this section are proposed to move from `M2.Platform.Api` to `M2.CrossCutting.Api` (:5200). BFFs and Platform.Api will call them via HTTPS REST.
+> **ADR-002 Proposal Note:** All modules in this section are proposed to move from `M2.Business.Api` to `M2.Platform.Api` (:5200). BFFs and Business.Api will call them via HTTPS REST.
 
 ### 8.1 Authorization Service
 
-**Proposed (ADR-002): `CrossCutting.Api`-hosted Authorization Module**
+**Proposed (ADR-002): `Platform.Api`-hosted Authorization Module**
 
-> *Current (Approved):* `M2.Platform.Api`-hosted. ADR-002 proposes migration to `M2.CrossCutting.Api`.
+> *Current (Approved):* `M2.Business.Api`-hosted. ADR-002 proposes migration to `M2.Platform.Api`.
 
-Rationale: Authorization checks are on the hot path of every request. All authorization logic and data are centralized in a single service — first `M2.Platform.Api`, and per ADR-002, `M2.CrossCutting.Api`. BFFs and Platform.Api call the Authorization module via REST/HTTPS, ensuring a single source of truth and consistent enforcement. Authorization data is read-heavy and cached aggressively within the CrossCutting process.
+Rationale: Authorization checks are on the hot path of every request. All authorization logic and data are centralized in a single service — first `M2.Business.Api`, and per ADR-002, `M2.Platform.Api`. BFFs and Business.Api call the Authorization module via REST/HTTPS, ensuring a single source of truth and consistent enforcement. Authorization data is read-heavy and cached aggressively within the CrossCutting process.
 
 **Design:**
 ```
-CrossCutting.Authorization (C# project, hosted in M2.CrossCutting.Api)
+Platform.Authorization (C# project, hosted in M2.Platform.Api)
   ├── IAuthorizationService          ← public interface exposed via REST endpoints
   ├── AuthorizationService           ← implementation
   ├── AuthorizationObject            ← domain model
@@ -1227,17 +1257,17 @@ CrossCutting.Authorization (C# project, hosted in M2.CrossCutting.Api)
   └── AuthorizationDbContext         ← schema: authz.*
 ```
 
-Cache invalidation: when a user's role assignment changes, the Authorization Module publishes a `RoleAssignmentChangedEvent`; the cache entry is evicted within `CrossCutting.Api`.
+Cache invalidation: when a user's role assignment changes, the Authorization Module publishes a `RoleAssignmentChangedEvent`; the cache entry is evicted within `Platform.Api`.
 
 **Evolution path:** If authorization data grows complex (ABAC, dynamic policies), extract to a standalone Policy Decision Point (PDP) service with a local cache for low-latency. Today it doesn't warrant it.
 
 ### 8.2 Approval Service — State Machine Design
 
-**Proposed (ADR-002 + ADR-004): `CrossCutting.Api`-hosted Approval Module with enhanced approver model**
+**Proposed (ADR-002 + ADR-004): `Platform.Api`-hosted Approval Module with enhanced approver model**
 
-> *Current (Approved):* `M2.Platform.Api`-hosted with single `RequiredPositionCode`. ADR-002 moves it to `CrossCutting.Api`; ADR-004 extends the approver definition.
+> *Current (Approved):* `M2.Business.Api`-hosted with single `RequiredPositionCode`. ADR-002 moves it to `Platform.Api`; ADR-004 extends the approver definition.
 
-The approval workflow is **sequential and position-based** with three supported approver types (ADR-004): fixed position, variable position (dynamically resolved at runtime), and group quorum. All BFFs interact with the Approval module via REST/HTTPS to `M2.CrossCutting.Api`.
+The approval workflow is **sequential and position-based** with three supported approver types (ADR-004): fixed position, variable position (dynamically resolved at runtime), and group quorum. All BFFs interact with the Approval module via REST/HTTPS to `M2.Platform.Api`.
 
 **State Machine (ADR-004 — with group quorum support):**
 
@@ -1257,16 +1287,17 @@ stateDiagram-v2
                     FixedPosition: 1 required approver
                     VariablePosition: resolved approver
                     PositionGroup: MinApprovers of M eligible
+                    Veto: ANY single Reject = immediate rejection
                 end note
             }
 
             AwaitingResponse --> StepApproved : ApprovedCount >= MinApprovers
-            AwaitingResponse --> StepRejected : RejectedCount > (Total - MinApprovers)
+            AwaitingResponse --> StepVetoed   : AnyVotedReject() [immediate veto — all types]
         }
 
         StepApproved --> StepActive : HasNextStep [ActivateStep(N+1)]
         StepApproved --> FinalApproved : IsLastStep
-        StepRejected --> WorkflowRejected
+        StepVetoed --> WorkflowRejected
     }
 
     FinalApproved --> Approved
@@ -1301,7 +1332,8 @@ ApprovalWorkflowTemplate
 **Quorum Logic (PositionGroup):**
 ```
 Step advances when:  ApprovedCount >= MinApprovers
-Step fails when:     RejectedCount > (TotalEligible - MinApprovers)
+Rejection:           ANY single eligible approver voting Reject = immediate veto
+                     ← step (and document) rejected immediately — no further responses collected
 ```
 All quorum evaluation is encapsulated in `ApprovalStepEvaluator` — deterministic, unit-testable, called after every `ApprovalStepResponse` insert.
 
@@ -1316,13 +1348,13 @@ public interface IPositionResolver
 
 Built-in variables: `superior_of_requester`, `branch_manager_of_requester`, `department_head_of_requester`. Extensible via configuration.
 
-**Notifications:** On step activation (including group steps), the Notification Module in `M2.CrossCutting.Api` dispatches approval requests to **all** eligible position holders simultaneously.
+**Notifications:** On step activation (including group steps), the Notification Module in `M2.Platform.Api` dispatches approval requests to **all** eligible position holders simultaneously.
 
 ### 8.3 Notification Service — Push Delivery
 
-**Proposed (ADR-002): `CrossCutting.Api`-hosted Notification Module**
+**Proposed (ADR-002): `Platform.Api`-hosted Notification Module**
 
-> *Current (Approved):* `M2.Platform.Api`-hosted. ADR-002 moves it to `M2.CrossCutting.Api`.
+> *Current (Approved):* `M2.Business.Api`-hosted. ADR-002 moves it to `M2.Platform.Api`.
 
 | Channel | Technology | Use Case |
 |---------|-----------|----------|
@@ -1332,7 +1364,7 @@ Built-in variables: `superior_of_requester`, `branch_manager_of_requester`, `dep
 **Architecture:**
 
 ```
-CrossCutting.Notification (C# project, hosted in M2.CrossCutting.Api)
+Platform.Notification (C# project, hosted in M2.Platform.Api)
   ├── INotificationService          ← public interface
   ├── SignalRNotificationChannel    ← uses IHubContext<PlatformHub>
   ├── FcmNotificationChannel        ← uses Firebase Admin SDK
@@ -1340,7 +1372,7 @@ CrossCutting.Notification (C# project, hosted in M2.CrossCutting.Api)
   └── DeviceTokenRegistry           ← stores user ↔ FCM device token mapping
 ```
 
-`M2.CrossCutting.Api` hosts the SignalR Hub. Flutter apps register FCM tokens on login; the registry maps `UserId → FCMToken[]` to support multi-device. BFFs and Platform.Api call notification logic via REST/HTTPS to CrossCutting.Api.
+`M2.Platform.Api` hosts the SignalR Hub. Flutter apps register FCM tokens on login; the registry maps `UserId → FCMToken[]` to support multi-device. BFFs and Business.Api call notification logic via REST/HTTPS to Platform.Api.
 
 **Trade-off acknowledged:** Azure Notification Hubs was evaluated. It adds managed fan-out for large audiences but introduces additional Azure dependency and cost. For this system's scale (staff + managers), direct FCM is sufficient and simpler. Revisit if the promotions app grows to 100k+ concurrent users.
 
@@ -1401,7 +1433,7 @@ The SAP Adapter translates SAP's data model into platform domain concepts. Domai
 | ORM | Entity Framework Core | 9.x | Code-first, migrations, LINQ — appropriate for domain-driven schema |
 | Validation | FluentValidation | 11.x | Expressive, testable, integrates with ASP.NET pipeline |
 | Mapping | Mapperly | latest | Source-generated, zero-reflection mapping — fast, type-safe |
-| Mediator | MediatR | 12.x | CQRS + events within Platform.Api process — clean cross-module communication |
+| Mediator | MediatR | 12.x | CQRS + events within Business.Api process — clean cross-module communication |
 | Resiliency | Polly | 8.x | Retry, circuit breaker, timeout policies |
 | HTTP Client | Refit | 7.x | Typed REST client generation (for SAP OData calls) |
 | Auth | Microsoft.Identity.Web | 3.x | Entra ID JWT validation, MSAL integration — used inside `EntraIdAuthenticationProvider` (ADR-003; decoupled from BFF pipeline) |
@@ -1439,7 +1471,7 @@ The SAP Adapter translates SAP's data model into platform domain concepts. Domai
 
 **Azure API Management (APIM) — Consumption tier** for development; **Standard v2** for production.
 
-- **Session token validation** (ADR-003): `send-request` policy calls `CrossCutting.Api GET /auth/sessions/{token}`; response cached in APIM for 30 s
+- **Session token validation** (ADR-003): `send-request` policy calls `Platform.Api GET /auth/sessions/{token}`; response cached in APIM for 30 s
 - API key validation via backend lookup policy
 - Rate limiting per key and per IP
 - Subscription-based routing
@@ -1468,7 +1500,7 @@ Internet
 Azure API Management (public endpoint)
   │  ← session token validation (ADR-003), rate limits, blocks bad traffic
   │
-  ├──── validate: GET /auth/sessions/{token} ───► M2.CrossCutting.Api :5200
+  ├──── validate: GET /auth/sessions/{token} ───► M2.Platform.Api :5200
   │                                                (internal ACA DNS)
   ▼
 Azure Container Apps Environment (internal VNet)
@@ -1478,7 +1510,7 @@ Azure Container Apps Environment (internal VNet)
         │                 │
         │ domain calls    │ cross-cutting calls
         ▼                 ▼
-    M2.Platform.Api    M2.CrossCutting.Api
+    M2.Business.Api    M2.Platform.Api
     :5100              :5200
     (X-Api-Key)        (X-Api-Key / X-Internal-Secret)
         │                     │           │
@@ -1488,7 +1520,7 @@ Azure Container Apps Environment (internal VNet)
                             endpoint
 ```
 
-**No BFF is directly internet-exposed.** All traffic enters through APIM. APIM validates session tokens against CrossCutting.Api before forwarding to BFFs.
+**No BFF is directly internet-exposed.** All traffic enters through APIM. APIM validates session tokens against Platform.Api before forwarding to BFFs.
 
 ### Secret Management
 
@@ -1499,8 +1531,8 @@ Azure Container Apps Environment (internal VNet)
 | Entra ID app secrets | Azure Key Vault | ACA Managed Identity |
 | SAP credentials | Azure Key Vault | ACA Managed Identity |
 | FCM service account key | Azure Key Vault | ACA Managed Identity |
-| Platform / CrossCutting API key hashes | Application DB | Never in config — always computed |
-| `X-Internal-Secret` (Platform.Api → CrossCutting.Api) | Azure Key Vault | ACA Managed Identity |
+| Business.Api / Platform.Api API key hashes | Application DB | Never in config — always computed |
+| `X-Internal-Secret` (Business.Api → Platform.Api) | Azure Key Vault | ACA Managed Identity |
 | Local dev secrets | `.env` (gitignored) + `dotnet user-secrets` | Never committed |
 
 **Rule:** If a secret is in source control, treat it as compromised and rotate immediately.
@@ -1520,13 +1552,13 @@ Azure Container Apps Environment (internal VNet)
 
 | Threat | Control |
 |--------|---------|
-| Broken Access Control | Authorization Module (CrossCutting.Api) enforces auth objects on every domain request; no role checks in UI only |
+| Broken Access Control | Authorization Module (Platform.Api) enforces auth objects on every domain request; no role checks in UI only |
 | Cryptographic Failures | TLS everywhere; no MD5/SHA1; Key Vault for all secrets; opaque session tokens (ADR-003) |
 | Injection | EF Core parameterized queries; no raw SQL string concatenation |
-| Insecure Design | Auth enforced at APIM + CrossCutting.Api; not just in controllers; stateful revocation (ADR-003) |
+| Insecure Design | Auth enforced at APIM + Platform.Api; not just in controllers; stateful revocation (ADR-003) |
 | Security Misconfiguration | Environment-specific config; APIM policy enforcement; container images do not run as root |
 | Vulnerable Components | Dependabot alerts enabled; regular `dotnet list package --vulnerable` in CI |
-| Auth Failures | Session tokens validated at APIM + CrossCutting.Api; TTL-limited; immediate revocation available (ADR-003) |
+| Auth Failures | Session tokens validated at APIM + Platform.Api; TTL-limited; immediate revocation available (ADR-003) |
 | Integrity Failures | Container image signing (Azure Container Registry + Notation); dependency pinning |
 | Logging Failures | All auth events, authorization decisions, and exceptions logged via Serilog + App Insights |
 | SSRF | Outbound calls only to known SAP endpoints, FCM, Redis, and IdP — no user-controlled URLs |

@@ -136,6 +136,472 @@ Test pyramid: 70% unit / 20% integration / 10% e2e. Standard tools: xUnit, flutt
 
 ---
 
+## 2026-05-27: Business-Domain Config Table — Replaces Generic feature_flags
+**By:** Ryan Chung  
+**What:**  
+Generic `feature_flags (flag_key TEXT, tenant_id, is_enabled)` with dot-notation keys is replaced with a structured, business-readable table.
+
+---
+
+#### Schema
+
+```sql
+CREATE TABLE entity_activity_config (
+    tenant_id             UUID        NOT NULL,
+    entity_type           TEXT        NOT NULL,   -- e.g. 'CustomerMaster', 'GoodsReceipt', 'Order'
+    activity              TEXT        NOT NULL,   -- enum: 'Create' | 'Update' | 'Delete'
+    approval_enabled      BOOLEAN     NOT NULL DEFAULT TRUE,
+    notification_enabled  BOOLEAN     NOT NULL DEFAULT TRUE,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, entity_type, activity)
+);
+```
+
+> `tenant_id` leads the PK for partition/index locality — all reads are tenant-scoped first.
+
+---
+
+#### Activity Enum — Full Words, Not CUD
+
+Use `Create / Update / Delete` (not C/U/D shorthand).  
+Rationale: DB admins configure this table directly via SQL or an admin UI. Full words are unambiguous at a glance. Brevity is irrelevant at ~12 rows per tenant.
+
+In C#, map to an enum:
+
+```csharp
+public enum EntityActivity
+{
+    Create,
+    Update,
+    Delete
+}
+```
+
+---
+
+#### C# Service Interface
+
+```csharp
+public interface IFeatureFlagService
+{
+    /// <summary>Returns false if approval is disabled for this entity+activity in the tenant.</summary>
+    Task<bool> IsApprovalEnabledAsync(string entityType, EntityActivity activity, Guid tenantId);
+
+    /// <summary>Returns false if notification is disabled for this entity+activity in the tenant.</summary>
+    Task<bool> IsNotificationEnabledAsync(string entityType, EntityActivity activity, Guid tenantId);
+}
+```
+
+Implementation caches per `(tenantId, entityType, activity)` key at 5-min TTL — consistent with auth cache TTL.
+
+```csharp
+// Query issued by implementation:
+SELECT approval_enabled, notification_enabled
+FROM   entity_activity_config
+WHERE  tenant_id   = @tenantId
+  AND  entity_type = @entityType
+  AND  activity    = @activity;
+```
+
+---
+
+#### Updated IRequiresApproval Marker Interface
+
+Replace the freeform `ApprovalPolicy` string with strongly-typed properties:
+
+```csharp
+// Before
+public interface IRequiresApproval
+{
+    string ApprovalPolicy { get; }   // "Order.Create" — typo-prone, opaque
+}
+
+// After
+public interface IRequiresApproval
+{
+    string         EntityType { get; }   // "Order", "CustomerMaster", "GoodsReceipt"
+    EntityActivity Activity   { get; }   // EntityActivity.Create / Update / Delete
+}
+```
+
+Usage on a command:
+
+```csharp
+public sealed record CreateOrderCommand(/* ... */) 
+    : IRequest<Result<Guid>>, IRequiresApproval
+{
+    public string         EntityType => "Order";
+    public EntityActivity Activity   => EntityActivity.Create;
+}
+```
+
+`ApprovalBehavior` resolves the flag check:
+
+```csharp
+if (request is IRequiresApproval req)
+{
+    var enabled = await _flags.IsApprovalEnabledAsync(req.EntityType, req.Activity, tenantId);
+    if (!enabled) return await next();   // skip, proceed directly to commit path
+}
+```
+
+---
+
+#### Trade-offs vs Generic dot-notation `flag_key`
+
+| | dot-notation `feature_flags` | `entity_activity_config` |
+|---|---|---|
+| **Lose** | Arbitrary new flag dimensions without schema migration (e.g. `approval.Order.Create.highValue`) | Flexibility — adding a 3rd behavior column (e.g. `audit_enabled`) requires ALTER TABLE |
+| **Gain** | — | Self-documenting; DB admins read/configure without knowing key contract; SQL joins are trivial; no key typo bugs at runtime |
+
+**Verdict:** For a POS system with a stable set of behaviors (approval + notification), the structured table is strictly better. The dot-notation approach only pays off when the flag namespace is open-ended and owned by non-engineers.
+
+---
+
+**Why:** Dot-notation keys are a developer convenience, not a business tool. The DB admin configuring per-tenant behavior should not need to know that `approval.Order.Create` is different from `approval.order.create`. Structured columns eliminate that entire class of operational errors.
+
+---
+
+## 2026-05-27: Operation Behavior Pipeline — implementation decisions confirmed
+**By:** Ryan Chung
+**What:**
+- MediatR IPipelineBehavior + C# Marker Interfaces chosen (not attributes, not config profiles)
+- Pipeline enforces required behaviors; marker interface presence = mandatory execution
+- On/off switch responsibility: cross-cutting SERVICE owns the flag check (IFeatureFlagService), not the pipeline behavior
+- Behavior calls service unconditionally; service returns NotRequired/Pending/Approved
+**Why:** Compile-time safety, strongly-typed policy contracts, clean separation of enforcement (pipeline) from policy (service).
+
+---
+
+## 2026-05-27: Operation Behavior Pipeline + Local Dev Auth
+**By:** Ryan Chung
+**What:** Added two architectural patterns to ARCHITECTURE.md:
+(1) Local Development Authentication — DevelopmentAuthHandler + local identity stub, zero-code-change deploy between dev and prod.
+(2) Operation Behavior Pipeline — declarative per-operation composition of AuthorizationBehavior, ApprovalBehavior, NotificationBehavior. Each behavior is optional, ordered, and toggleable via feature flags without redeployment.
+**Why:** Architecture was silent on local dev testing against APIM, and had no systematic way to manage which cross-cutting services participate in each business operation.
+
+---
+
+## 2026-05-27: Three-Flow Pipeline Architecture — GET single, GET list, CUD
+**Date:** 2026-05-27T21:25:53.878+08:00  
+**Author:** Keyser (Lead/Architect)  
+**Status:** Proposed — pending team review  
+**Supersedes/Amends:** Section 8.4 of ARCHITECTURE.md (ApprovalBehavior positioning)
+
+---
+
+### Context
+
+Three distinct operation flows have been identified for the POS system. Each requires a different pipeline composition using the MediatR Marker Interface pattern:
+
+1. **GET single:** auth check → fetch data  
+2. **GET list:** fetch data → filter by auth (post-fetch)  
+3. **CUD (Create/Update/Delete):** auth check → save as pending → approval → commit → notification
+
+The existing Section 8.4 was designed generically. This ADR crystallises the concrete per-flow decisions and resolves a positional ambiguity in `ApprovalBehavior`.
+
+---
+
+### Decisions
+
+#### D1 — Four Behaviors, Fixed Registration Order
+
+| # | Behavior | Marker triggers | Position |
+|---|----------|----------------|----------|
+| 1 | `AuthorizationBehavior` | `IRequiresAuthorization` | Pre-handler gate (outermost) |
+| 2 | `ApprovalBehavior` | `IRequiresApproval` | Post-handler wrapper (calls `next()` first) |
+| 3 | `QueryAuthorizationBehavior` | response `IFilterableByAuthorization` | Post-handler filter |
+| 4 | `NotificationBehavior` | `INotifiable` | Post-handler fire-and-forget (innermost) |
+
+```csharp
+services.AddMediatR(cfg =>
+{
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));        // 1st
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ApprovalBehavior<,>));             // 2nd
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(QueryAuthorizationBehavior<,>));  // 3rd — NEW
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(NotificationBehavior<,>));        // 4th
+});
+```
+
+> ⚠️ `QueryAuthorizationBehavior` is a **new behavior** — requires a code change per the pipeline code-change constraint.
+
+---
+
+#### D2 — Flow 1: GET Single (pre-handler auth gate)
+
+```
+GetOrderQuery (IRequiresAuthorization)
+  → AuthorizationBehavior: check → 403 if denied → next()
+  → [ApprovalBehavior skips: not IRequiresApproval]
+  → [QueryAuthorizationBehavior skips: response not IFilterableByAuthorization]
+  → Handler: fetch entity
+  → [NotificationBehavior skips: not INotifiable]
+  ← Response
+```
+
+**Marker used:** `IRequiresAuthorization` — binary pre-gate; 403 before DB touch if denied.
+
+---
+
+#### D3 — Flow 2: GET List (post-fetch auth filter)
+
+```
+GetOrdersQuery  (no IRequiresAuthorization — no pre-gate)
+  → [AuthorizationBehavior skips]
+  → [ApprovalBehavior skips]
+  → QueryAuthorizationBehavior: calls next() first → handler fetches all → filters response
+  → Handler: fetch full list
+  → [NotificationBehavior skips]
+  ← Filtered response
+```
+
+**Marker used:** `IFilterableByAuthorization` on the response type — post-handler filter.  
+**Why no pre-gate?** The requirement is explicit: fetch first, filter after. The filter IS the auth check for list operations. A pre-gate would prevent even the fetch; that is not the intended semantics here.
+
+```csharp
+// Response type implements the marker
+public interface IFilterableByAuthorization { }
+
+public class OrderListResult : IFilterableByAuthorization
+{
+    public IReadOnlyList<OrderDto> Items { get; init; }
+}
+
+public class QueryAuthorizationBehavior<TRequest, TResponse>
+    : IPipelineBehavior<TRequest, TResponse>
+{
+    public async Task<TResponse> Handle(TRequest request, HandlerDelegate next, CancellationToken ct)
+    {
+        var response = await next(); // fetch first
+        if (response is IFilterableByAuthorization filterable)
+            return (TResponse)await _authzService.FilterListAsync(filterable, ct);
+        return response;
+    }
+}
+```
+
+---
+
+#### D4 — Flow 3: CUD — Two-Phase Commit via Separate Command
+
+The CUD flow is split across **two MediatR commands**:
+
+##### Phase 1 — Initial submit (e.g., `CreateOrderCommand`)
+
+```
+CreateOrderCommand (IRequiresAuthorization, IRequiresApproval)
+  → AuthorizationBehavior: pre-gate
+  → ApprovalBehavior: calls next() FIRST (post-handler)
+    → [QueryAuthorizationBehavior skips]
+    → [NotificationBehavior skips — not INotifiable]
+    → Handler: saves entity as status=Pending
+  ← ApprovalBehavior evaluates post-handler:
+      Required     → creates approval workflow in Platform.Api → returns 202 Accepted
+      NotRequired  → enqueues CommitOrderCommand via Hangfire → returns 200
+```
+
+> **Amendment to Section 8.4:** `ApprovalBehavior` calls `await next()` FIRST for CUD operations. It is a **post-handler wrapper**, not a pre-handler gate. The existing diagram showing it as a pre-gate was incorrect for this flow.  
+> **Rationale:** The "save as pending" step must persist to the domain DB before the approval workflow can reference an entity ID. Pre-gating the handler prevents this.
+
+##### Phase 2 — Commit (e.g., `CommitOrderCommand`)
+
+Triggered by:
+- **Approval not required:** `ApprovalBehavior` enqueues via Hangfire immediately after Phase 1
+- **Approval granted:** Platform.Api approval webhook calls `POST /orders/{id}/commit` on Business.Api → handler dispatches `CommitOrderCommand`
+
+```
+CommitOrderCommand (IRequiresAuthorization, INotifiable)
+  → AuthorizationBehavior: pre-gate (system principal or approver identity)
+  → [ApprovalBehavior skips: not IRequiresApproval]
+  → [QueryAuthorizationBehavior skips]
+  → NotificationBehavior: calls next() first
+    → Handler:
+        SAP entity     → enqueue SAP upload via outbox (Hangfire + Polly)
+        non-SAP entity → update status: Pending → Active
+  ← NotificationBehavior: fire-and-forget Platform.Api /notifications
+  ← Response
+```
+
+**Key consequences:**
+- `INotifiable` lives on `CommitOrderCommand`, NOT on `CreateOrderCommand`. Notification fires after commit, not after save-as-pending.
+- SAP upload logic lives in the `CommitOrderCommand` handler (domain concern), not in the behavior or in Platform.Api.
+- The two-branch commit (SAP vs non-SAP) is resolved inside the handler. The pipeline is oblivious to the branch.
+
+---
+
+#### D5 — ApprovalBehavior: Two-Branch Logic
+
+```csharp
+public class ApprovalBehavior<TRequest, TResponse>
+    : IPipelineBehavior<TRequest, TResponse>
+{
+    public async Task<TResponse> Handle(TRequest request, HandlerDelegate next, CancellationToken ct)
+    {
+        if (request is not IRequiresApproval approvalRequest)
+            return await next(); // marker absent — skip entirely
+
+        // Call next FIRST: handler saves entity as Pending
+        var handlerResult = await next();
+
+        // Post-handler: service decides if approval is required (checks feature flags internally)
+        var decision = await _approvalService.EvaluateAsync(approvalRequest, ct);
+
+        return decision switch
+        {
+            ApprovalDecision.Required    => CreateAcceptedResponse(), // 202 — workflow created
+            ApprovalDecision.NotRequired => await _approvalService.TriggerCommitAsync(approvalRequest, handlerResult, ct),
+            _                           => handlerResult
+        };
+    }
+}
+```
+
+**Trade-off:** `TriggerCommitAsync` enqueues a Hangfire job rather than dispatching inline. This avoids nested MediatR dispatch from inside a behavior and provides durability parity with the SAP outbox pattern.
+
+---
+
+#### D6 — DB Configuration Table (feature_flags)
+
+```sql
+CREATE TABLE feature_flags (
+    flag_key   TEXT        NOT NULL,  -- e.g. 'approval.enabled', 'approval.Order.Create', 'notification.enabled'
+    tenant_id  UUID        NOT NULL,
+    is_enabled BOOLEAN     NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (flag_key, tenant_id)
+);
+```
+
+**Read strategy:** `IFeatureFlagService` caches via `IMemoryCache` at **5-minute TTL** — consistent with the auth cache TTL (ADR-004). Per-request reads are prohibited (hot path overhead).
+
+**Who checks it:**
+
+| Service | Flag keys checked |
+|---------|------------------|
+| `IApprovalService` | `approval.enabled`, `approval.{ApprovalPolicy}` |
+| `INotificationService` | `notification.enabled`, `notification.{NotificationEvent}` |
+| `IAuthorizationService` | Not togglable — always enforced (no feature flag) |
+
+Behaviors never read `feature_flags` directly. The service reads them and returns `ApprovalDecision.NotRequired` / no-op when disabled.
+
+---
+
+#### D7 — Marker Interface Summary
+
+| Marker | Implemented by | Behavior activated | Position |
+|--------|---------------|-------------------|----------|
+| `IRequiresAuthorization` | Command/Query | `AuthorizationBehavior` | Pre-handler |
+| `IRequiresApproval` | CUD Command | `ApprovalBehavior` | Post-handler |
+| `IFilterableByAuthorization` | List Response type | `QueryAuthorizationBehavior` | Post-handler |
+| `INotifiable` | Commit Command | `NotificationBehavior` | Post-handler |
+
+---
+
+#### Trade-offs
+
+| Decision | Chosen | Alternative | Why not alternative |
+|----------|--------|-------------|-------------------|
+| ApprovalBehavior position | Post-handler (calls `next()` first) | Pre-handler gate | Pre-gate prevents handler from saving Pending record — breaks the required two-phase persist-then-approve flow |
+| CUD commit trigger | Hangfire job enqueue | Inline MediatR dispatch from behavior | Dispatching from behavior creates nested pipeline coupling; Hangfire provides durability consistent with SAP outbox |
+| GET list auth | Post-fetch filter via `IFilterableByAuthorization` | Pre-handler `IRequiresAuthorization` only | Pre-gate is binary (pass/fail); list filtering requires per-item policy evaluation on the fetched data |
+| Notification placement | On `CommitCommand` only | On initial CUD command | Notification is confirmation of committed state, not pending state; business semantics require notification after commit |
+| Feature flag location | Inside service (`IFeatureFlagService`) | Inside behavior | Behaviors are enforcement mechanism only; services are policy authority (established pipeline contract) |
+
+---
+
+## Impact on ARCHITECTURE.md
+
+Section 8.4 requires the following amendments:
+1. **Amend pipeline diagram** — show `ApprovalBehavior` as post-handler wrapper (not pre-gate)
+2. **Add `QueryAuthorizationBehavior`** to behavior registration snippet and integration table
+3. **Add two-command CUD flow** — Phase 1 (save as Pending) and Phase 2 (CommitCommand)
+4. **Add `IFilterableByAuthorization`** to marker interfaces section
+5. **Update ApprovalBehavior code snippet** — show `await next()` called first
+
+> These amendments are tracked for the next ARCHITECTURE.md update cycle.
+
+---
+
+## 2026-05-28: Section 8.4 Amendment — Eight Pipeline Corrections Applied
+**Date:** 2026-05-28T00:55:23.719+08:00  
+**Author:** Keyser (Lead/Architect)  
+**Status:** Applied — ARCHITECTURE.md Section 8.4 updated  
+**Amends:** Section 8.4 "Operation Behavior Pipeline"
+
+---
+
+### Summary
+
+Eight confirmed architectural decisions from the prior session have been applied as surgical edits to Section 8.4. No sections outside 8.4 were modified.
+
+---
+
+### Decisions Applied
+
+#### 1 — ApprovalBehavior is POST-handler (not pre-gate)
+
+`ApprovalBehavior` calls `await next()` first. The handler saves the entity as `status = Pending` before `ApprovalBehavior` evaluates. Corrected in diagram, prose, and code sketch.
+
+**Trade-off:** Pre-gating would prevent the Pending record from being created before the approval workflow references an entity ID. Post-handler is required for the two-phase persist-then-approve flow.
+
+---
+
+#### 2 — QueryAuthorizationBehavior + IFilterableByAuthorization
+
+New behavior registered 3rd in DI. Fires only when the **response type** implements `IFilterableByAuthorization`. GET list responses implement the marker; the behavior fetches all, then filters post-handler.
+
+**Trade-off:** In-process filtering (no HTTP hop) vs. pre-gate authorization. Pre-gate is binary (pass/fail); list filtering requires per-item evaluation on fetched data. In-process is appropriate — the authorization rules live in the same bounded context.
+
+---
+
+#### 3 — Two-Command CUD Split (Two-Phase Commit)
+
+- `Create{Entity}Command` (markers: `IRequiresAuthorization`, `IRequiresApproval`): saves as Pending, ApprovalBehavior evaluates post-handler
+- `Commit{Entity}Command` (markers: `IRequiresAuthorization`, `INotifiable`): triggered by Hangfire or approval webhook; updates Pending→Active, SAP outbox, fires notification
+
+**Trade-off:** Two commands vs. a single command with branching internal state. Two commands provides clean pipeline composition — each command declares exactly the behaviors it needs. `INotifiable` belongs on CommitCommand only (notification = committed state, not pending state).
+
+---
+
+#### 4 — IRequiresApproval Strongly Typed
+
+Replaced `ApprovalPolicy string` with `EntityType (string)` + `Activity (EntityActivity enum)`. Compile-time traceability; eliminates key typo bugs at runtime.
+
+**Trade-off:** Slightly more verbose on the command record vs. a single string. The gain (compile-time traceability + structured DB query key) outweighs the verbosity.
+
+---
+
+#### 5 — entity_activity_config Replaces feature_flags
+
+Structured table `(tenant_id, entity_type, activity)` PK with `approval_enabled` + `notification_enabled` columns. All `feature_flags` references removed from Section 8.4.
+
+**Trade-off:** Cannot add arbitrary new flag dimensions without ALTER TABLE. Acceptable for a POS system with a stable behavior set.
+
+---
+
+#### 6 — IFeatureFlagService: Flag Check Inside ApprovalBehavior (not IApprovalService)
+
+`ApprovalBehavior` calls `IFeatureFlagService.IsApprovalEnabledAsync` directly. `IApprovalService.EvaluateAsync` (which previously wrapped the flag check) is removed from the design.
+
+**Trade-off:** This slightly blurs the "services = policy authority" contract established in the prior session. The rationale: the flag check is not policy (it's a toggle read), and moving it into the behavior keeps the approval service focused on workflow creation. The pipeline contract principle remains intact — behaviors still do not create approval workflows; they delegate that to `IApprovalService.CreateWorkflowAsync`.
+
+---
+
+#### 7 — Hangfire for Commit Dispatch (not inline MediatR Send)
+
+When approval is disabled, `ApprovalBehavior` enqueues `CommitCommand` via Hangfire. Inline `Send()` from inside a behavior creates nested pipeline calls that are hard to test and reason about. Hangfire provides durability parity with the SAP outbox pattern.
+
+---
+
+#### 8 — VariablePosition — trimmed to single built-in + code-change constraint
+
+Removed branch_manager_of_requester and department_head_of_requester from built-in variable list. Only superior_of_requester remains. Added explicit note that PositionVariable values are code-defined constants — new variables require a code change to IPositionResolver.
+
+**Trade-off:** Scope reduction + surfacing the implementation constraint explicitly in the architecture doc.
+
+---
+
 ## Open Questions (Pending Decision)
 
 ---

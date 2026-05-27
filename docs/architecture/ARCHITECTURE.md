@@ -1462,41 +1462,52 @@ Platform.Notification (C# project, hosted in M2.Platform.Api)
 
 #### The Pipeline Pattern
 
-Inspired by MediatR `IPipelineBehavior<TRequest, TResponse>` (.NET). Every command/query enters the behavior chain in declaration order, with behaviors wrapping the handler by calling `await next()` to proceed inward:
+Inspired by MediatR `IPipelineBehavior<TRequest, TResponse>` (.NET). Every command/query enters the behavior chain in declaration order — **outermost wraps innermost** — with behaviors calling `await next()` to proceed inward. The DI registration order determines wrapping: first-registered = outermost.
 
 ```
-Request → [AuthorizationBehavior] → [ApprovalBehavior] → Handler → [NotificationBehavior fires post-handler] → Response
+Request → [AuthorizationBehavior] → [ApprovalBehavior] → [QueryAuthorizationBehavior] → [NotificationBehavior] → Handler → Response
+          (pre-gate)                 (post-wrapper)        (post-filter)                  (post-fire-and-forget)
 ```
 
-Each behavior wraps the next, giving it control to short-circuit, enrich, or react to the response. `AuthorizationBehavior` and `ApprovalBehavior` are pre-handler gates; `NotificationBehavior` is a post-handler wrapper that calls `await next()` first and only notifies after the handler succeeds.
+`AuthorizationBehavior` is the **only pre-handler gate** — it short-circuits to 403 before calling `next()` if denied. The remaining three behaviors all call `await next()` first and act on the result post-handler. This means the handler always executes (provided auth passes) and saves its state before any post-handler behavior evaluates.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Incoming Request                                       │
-│      │                                                  │
-│      ▼                                                  │
-│  ┌───────────────────────┐                              │
-│  │  AuthorizationBehavior│  ← always runs first         │
-│  │  calls Platform.Api   │                              │
-│  │  /authz/check         │  → 403 if denied             │
-│  └──────────┬────────────┘                              │
-│             ▼                                           │
-│  ┌───────────────────────┐                              │
-│  │  ApprovalBehavior     │  ← runs if IRequiresApproval │
-│  │  calls Platform.Api   │                              │
-│  │  /approvals           │  → 202 Accepted if workflow  │
-│  └──────────┬────────────┘    created (handler skipped) │
-│             ▼                                           │
-│  ┌───────────────────────┐                              │
-│  │  Handler              │  ← executes business logic   │
-│  └──────────┬────────────┘                              │
-│             ▼                                           │
-│  ┌───────────────────────┐                              │
-│  │  NotificationBehavior │  ← runs after handler if     │
-│  │  calls Platform.Api   │    INotifiable present        │
-│  │  /notifications       │    fire-and-forget            │
-│  └───────────────────────┘                              │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Incoming Request                                                       │
+│      │                                                                  │
+│      ▼                                                                  │
+│  ┌───────────────────────────────────────┐                              │
+│  │  AuthorizationBehavior                │  ← PRE-handler gate          │
+│  │  IRequiresAuthorization on request    │    UNCONDITIONAL — no toggle  │
+│  │  calls Platform.Api /authz/check      │  → 403 if denied (stops here)│
+│  └──────────────────┬────────────────────┘                              │
+│                     │ calls next()                                      │
+│                     ▼                                                   │
+│  ┌───────────────────────────────────────┐                              │
+│  │  ApprovalBehavior                     │  ← POST-handler wrapper      │
+│  │  IRequiresApproval on request         │    calls next() FIRST        │
+│  │  evaluates after handler saves Pending│  → 202 Accepted or commit    │
+│  └──────────────────┬────────────────────┘                              │
+│                     │ calls next()                                      │
+│                     ▼                                                   │
+│  ┌───────────────────────────────────────┐                              │
+│  │  QueryAuthorizationBehavior           │  ← POST-handler filter       │
+│  │  IFilterableByAuthorization on        │    calls next() FIRST        │
+│  │  response type (GET list only)        │    filters items post-fetch  │
+│  └──────────────────┬────────────────────┘                              │
+│                     │ calls next()                                      │
+│                     ▼                                                   │
+│  ┌───────────────────────────────────────┐                              │
+│  │  NotificationBehavior                 │  ← POST-handler fire-and-    │
+│  │  INotifiable on request               │    forget — calls next() FIRST│
+│  │  calls Platform.Api /notifications    │    failure does not roll back │
+│  └──────────────────┬────────────────────┘                              │
+│                     │ calls next()                                      │
+│                     ▼                                                   │
+│  ┌───────────────────────────────────────┐                              │
+│  │  Handler                              │  ← executes business logic   │
+│  └───────────────────────────────────────┘                              │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 #### Operation Metadata / Declaration
@@ -1506,9 +1517,12 @@ Operations declare their behavior requirements via **C# marker interfaces** at c
 ```csharp
 public interface IRequiresAuthorization { }
 
+public enum EntityActivity { Create, Update, Delete }
+
 public interface IRequiresApproval
 {
-    string ApprovalPolicy { get; }
+    string         EntityType { get; }   // e.g. "CustomerMaster", "GoodsReceipt"
+    EntityActivity Activity   { get; }   // EntityActivity.Create / Update / Delete
 }
 
 public interface INotifiable
@@ -1516,27 +1530,44 @@ public interface INotifiable
     string NotificationEvent { get; }
 }
 
-// Command declaring its required behaviors:
-public class SubmitCustomerMasterCommand
-    : IRequest<Result>,
-      IRequiresAuthorization,
-      IRequiresApproval,
-      INotifiable
+/// <summary>
+/// Applied to response types (e.g. IReadOnlyList&lt;T&gt; wrappers) whose items
+/// should be filtered by the caller's authorization context post-handler.
+/// </summary>
+public interface IFilterableByAuthorization { }
+
+// Phase 1 command — saves entity as Pending, triggers approval
+public sealed record CreateCustomerMasterCommand(/* ... */)
+    : IRequest<Result>, IRequiresAuthorization, IRequiresApproval
 {
-    public string ApprovalPolicy => "CustomerMaster.New";
-    public string NotificationEvent => "CustomerMaster.Submitted";
+    public string         EntityType => "CustomerMaster";
+    public EntityActivity Activity   => EntityActivity.Create;
+}
+
+// Phase 2 command — commits entity, fires notification
+public sealed record CommitCustomerMasterCommand(/* ... */)
+    : IRequest<Result>, IRequiresAuthorization, INotifiable
+{
+    public string NotificationEvent => "CustomerMaster.Committed";
+}
+
+// GET list response — items filtered post-fetch by QueryAuthorizationBehavior
+public sealed class CustomerMasterListResult : IFilterableByAuthorization
+{
+    public IReadOnlyList<CustomerMasterDto> Items { get; init; }
 }
 ```
 
 **Enforced vs. optional behaviors:**
 
-| Behavior | Type | What happens if marker absent |
-|----------|------|-------------------------------|
-| `IRequiresAuthorization` | **Enforced** — pipeline returns `Unauthorized` if check fails | Behavior skips (anonymous/public operation) |
-| `IRequiresApproval` | Conditional — marker absent → behavior skips via `is not` | Proceeds to handler immediately |
-| `INotifiable` | Conditional — marker absent → behavior skips via `is not` | No notification dispatched |
+| Behavior | Marker location | Type | What happens if marker absent |
+|----------|----------------|------|-------------------------------|
+| `IRequiresAuthorization` | On **request** | **Enforced** — pipeline returns `Unauthorized` if check fails | Behavior skips (anonymous/public operation) |
+| `IRequiresApproval` | On **request** | Conditional — marker absent → behavior skips via `is not` | Proceeds to handler immediately |
+| `IFilterableByAuthorization` | On **response type** | Conditional — response not filterable → behavior skips | No post-fetch filter applied |
+| `INotifiable` | On **request** | Conditional — marker absent → behavior skips via `is not` | No notification dispatched |
 
-> A command implementing `IRequiresAuthorization` **must** be authorized — the pipeline does not allow bypass. Authorization is the only unconditionally enforced behavior.
+> A command implementing `IRequiresAuthorization` **must** be authorized — the pipeline does not allow bypass. Authorization is the only unconditionally enforced behavior (no DB toggle).
 
 > **Note (Option B — named pipeline profiles in JSON config):** A config-driven profile approach was considered but **not chosen**. Marker interfaces were selected for compile-time safety and strongly-typed policy contracts. Runtime enable/disable of existing behaviors is handled inside the cross-cutting service via `IFeatureFlagService` (see [Enable / Disable at Runtime](#enable--disable-at-runtime)).
 
@@ -1547,9 +1578,10 @@ Behaviors are registered in the DI container in fixed priority order:
 ```csharp
 services.AddMediatR(cfg =>
 {
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));   // 1st — always
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ApprovalBehavior<,>));        // 2nd — conditional
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(NotificationBehavior<,>));    // 3rd — conditional post-handler wrapper
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));          // 1st — always, pre-handler gate
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ApprovalBehavior<,>));               // 2nd — POST-handler, IRequiresApproval only
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(QueryAuthorizationBehavior<,>));     // 3rd — POST-handler, IFilterableByAuthorization only
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(NotificationBehavior<,>));           // 4th — POST-handler fire-and-forget, INotifiable only
 });
 ```
 
@@ -1562,43 +1594,151 @@ public class ApprovalBehavior<TRequest, TResponse>
     public async Task<TResponse> Handle(TRequest request, HandlerDelegate next, CancellationToken ct)
     {
         if (request is not IRequiresApproval approvalRequest)
-            return await next(); // marker absent — skip
+            return await next(); // marker absent — skip entirely
 
-        // Always call the service; it owns the on/off decision
-        var result = await _approvalService.EvaluateAsync(approvalRequest);
+        // PHASE 1: execute handler first (saves entity as Pending)
+        var response = await next();
 
-        if (result == ApprovalResult.NotRequired)
-            return await next(); // service says: not applicable, proceed
+        // PHASE 2: evaluate approval post-handler
+        var enabled = await _featureFlags.IsApprovalEnabledAsync(
+            approvalRequest.EntityType, approvalRequest.Activity, _tenantContext.TenantId);
 
-        if (result == ApprovalResult.Pending)
-            return Result.Pending("Awaiting approval"); // short-circuit
+        if (!enabled)
+        {
+            // Approval disabled — enqueue commit via Hangfire
+            _backgroundJobs.Enqueue<ICommitJobHandler>(
+                h => h.CommitAsync(approvalRequest.EntityType, approvalRequest.Activity, ct));
+            return response;
+        }
 
-        return await next(); // approved — proceed to handler
+        // Approval enabled — create workflow in Platform.Api
+        await _approvalService.CreateWorkflowAsync(approvalRequest, ct);
+        return Result.Pending("Submitted for approval") as TResponse ?? response;
     }
 }
 ```
 
+> **Why Hangfire for the commit dispatch (not inline MediatR `Send()`)?** Dispatching a nested `Send()` from inside a behavior creates nested pipeline calls that are hard to test and reason about. Hangfire provides durability aligned with the SAP outbox pattern.
+
 #### Enable / Disable at Runtime
 
-The pipeline behavior calls the cross-cutting service **unconditionally** whenever the marker interface is present. Whether the service actually performs the action is determined **inside the service itself** via `IFeatureFlagService` backed by a DB table — the behavior does NOT inspect feature flags.
+The pipeline behavior calls the cross-cutting service **unconditionally** whenever the marker interface is present. Whether the service actually performs the action is determined **inside the service itself** via `IFeatureFlagService` backed by the `entity_activity_config` DB table — the behavior does NOT inspect feature flags directly.
+
+```sql
+CREATE TABLE entity_activity_config (
+    tenant_id             UUID     NOT NULL,
+    entity_type           TEXT     NOT NULL,   -- 'CustomerMaster', 'GoodsReceipt'
+    activity              TEXT     NOT NULL,   -- 'Create' | 'Update' | 'Delete'
+    approval_enabled      BOOLEAN  NOT NULL DEFAULT TRUE,
+    notification_enabled  BOOLEAN  NOT NULL DEFAULT TRUE,
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, entity_type, activity)
+);
+```
+
+```csharp
+public interface IFeatureFlagService
+{
+    Task<bool> IsApprovalEnabledAsync(string entityType, EntityActivity activity, Guid tenantId);
+    Task<bool> IsNotificationEnabledAsync(string entityType, EntityActivity activity, Guid tenantId);
+}
+```
+
+Implementation caches per `(tenantId, entityType, activity)` key at **5-minute TTL** via `IMemoryCache` — consistent with the auth cache TTL (ADR-004). Per-request DB reads are prohibited.
 
 | Granularity | Mechanism | Where decided |
 |-------------|-----------|---------------|
 | **Per-behavior type** (global) | `IFeatureFlagService` inside the service | Cross-cutting service (Platform.Api) |
-| **Per-operation** | `IFeatureFlagService` keyed by operation/policy | Cross-cutting service (Platform.Api) |
-| **Per-tenant** | Runtime config (DB or Azure App Configuration) | Cross-cutting service (Platform.Api) |
+| **Per entity+activity** | `entity_activity_config` keyed by `(tenant_id, entity_type, activity)` | Cross-cutting service (Platform.Api) |
+| **Per-tenant** | `entity_activity_config` tenant_id column | Cross-cutting service (Platform.Api) |
 
-`IApprovalService.EvaluateAsync(request)` internally checks feature flags and returns `ApprovalResult.NotRequired` when approval is disabled for a given operation or tenant. The behavior acts on the result — it does not inspect feature flags itself.
+`ApprovalBehavior` reads `IsApprovalEnabledAsync(request.EntityType, request.Activity, tenantId)` directly via `IFeatureFlagService`. The behavior acts on the boolean result — it does not call `IApprovalService.EvaluateAsync` (removed); the flag check is now inside the behavior, not delegated to a service.
 
 #### Integration with Cross-Cutting Services
 
 | Behavior | Calls | Protocol |
 |----------|-------|----------|
 | `AuthorizationBehavior` | `Platform.Api` `/authz/check` | HTTPS REST (sync — must pass before handler) |
-| `ApprovalBehavior` | `Platform.Api` `/approvals` | HTTPS REST (sync — creates workflow; may return 202 before handler runs) |
+| `ApprovalBehavior` | `Platform.Api` `/approvals` | HTTPS REST (sync — creates workflow; handler has already saved Pending) |
+| `QueryAuthorizationBehavior` | In-process `IAuthorizationService` | In-process (no HTTP hop — filters list response after fetch) |
 | `NotificationBehavior` | `Platform.Api` `/notifications` | HTTPS REST (fire-and-forget — runs after handler, failure does not roll back) |
 
 `NotificationBehavior` dispatches asynchronously (background `Task`) — a notification failure does not affect the operation result.
+
+#### Three Distinct Flow Patterns
+
+| Flow | Markers on Request | Marker on Response | Pre-handler | Post-handler |
+|------|-------------------|--------------------|-------------|--------------|
+| GET single | `IRequiresAuthorization` | — | AuthBehavior gate | — |
+| GET list | — | `IFilterableByAuthorization` (on response type) | — | QueryAuthBehavior filter |
+| CUD Phase 1 | `IRequiresAuthorization`, `IRequiresApproval` | — | AuthBehavior gate | ApprovalBehavior |
+| CUD Phase 2 | `IRequiresAuthorization`, `INotifiable` | — | AuthBehavior gate | NotificationBehavior |
+
+**Flow 1 — GET single:**
+```
+GetCustomerMasterQuery (IRequiresAuthorization)
+  → AuthorizationBehavior: pre-gate → 403 if denied
+  → [ApprovalBehavior skips: not IRequiresApproval]
+  → [QueryAuthorizationBehavior skips: response not IFilterableByAuthorization]
+  → Handler: fetch entity
+  → [NotificationBehavior skips: not INotifiable]
+  ← Response
+```
+
+**Flow 2 — GET list:**
+```
+GetCustomerMastersQuery  (no IRequiresAuthorization — no pre-gate)
+  → [AuthorizationBehavior skips]
+  → [ApprovalBehavior skips]
+  → QueryAuthorizationBehavior: calls next() first → handler fetches all → filters response items
+  → Handler: fetch full list → returns CustomerMasterListResult : IFilterableByAuthorization
+  → [NotificationBehavior skips]
+  ← Filtered response
+```
+
+**Flow 3 — CUD (Two-Phase Commit):**
+
+#### CUD Two-Phase Commit
+
+The CUD flow is split across **two MediatR commands** to ensure the entity is persisted before the approval workflow references it.
+
+**Phase 1 — `Create{Entity}Command` (e.g., `CreateCustomerMasterCommand`):**
+- Markers: `IRequiresAuthorization`, `IRequiresApproval`
+- Handler saves entity as `status = Pending`
+- `ApprovalBehavior` evaluates AFTER handler:
+  - Approval **enabled** → calls `Platform.Api /approvals` → creates approval workflow → returns `202 Accepted`
+  - Approval **disabled** → enqueues `Commit{Entity}Command` via Hangfire → returns `200 OK`
+
+```
+CreateCustomerMasterCommand (IRequiresAuthorization, IRequiresApproval)
+  → AuthorizationBehavior: pre-gate
+  → ApprovalBehavior: calls next() FIRST (post-handler wrapper)
+    → [QueryAuthorizationBehavior skips]
+    → [NotificationBehavior skips — not INotifiable]
+    → Handler: saves entity as status=Pending
+  ← ApprovalBehavior evaluates:
+        enabled=true   → Platform.Api creates workflow    → 202 Accepted
+        enabled=false  → Hangfire enqueues CommitCommand  → 200 OK
+```
+
+**Phase 2 — `Commit{Entity}Command` (e.g., `CommitCustomerMasterCommand`):**
+- Markers: `IRequiresAuthorization`, `INotifiable`
+- Triggered by: Hangfire (approval disabled) OR Platform.Api approval webhook callback (approved)
+- Handler updates entity `Pending → Active`, uploads to SAP via outbox
+- `NotificationBehavior` fires after handler (fire-and-forget)
+
+```
+CommitCustomerMasterCommand (IRequiresAuthorization, INotifiable)
+  → AuthorizationBehavior: pre-gate (system principal or approver identity)
+  → [ApprovalBehavior skips: not IRequiresApproval]
+  → [QueryAuthorizationBehavior skips]
+  → NotificationBehavior: calls next() first
+    → Handler: update status Pending → Active; enqueue SAP upload via outbox
+  ← NotificationBehavior: fire-and-forget Platform.Api /notifications
+  ← Response
+```
+
+> **`INotifiable` lives on `CommitCommand`, NOT on `CreateCommand`.** Notification fires after commit — not after save-as-pending. Business semantics require notification of committed state only.
 
 #### Code-Change Constraint
 

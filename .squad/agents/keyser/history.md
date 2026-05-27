@@ -82,6 +82,26 @@
   - APIM URLs injected via `appsettings.{Environment}.json` — never hardcoded
   - Docker Compose `override.yml` pattern for Keycloak local stub
   - Zero-code-change deploy principle documented with ✅ callout
+### 2026-05-27 — Three-Flow Pipeline Architecture: GET single, GET list, CUD
+
+- **Task:** Full pipeline architecture analysis for three distinct operation flows using the MediatR Marker Interface pattern.
+
+**Key decisions reached:**
+
+1. **ApprovalBehavior repositioned as POST-handler for CUD** — current ARCHITECTURE.md shows it as pre-handler gate; corrected to call `await next()` first so handler can save entity as `status=Pending` before approval is evaluated. This is a material amendment to Section 8.4.
+
+2. **Fourth behavior added: `QueryAuthorizationBehavior`** — handles GET list post-fetch auth filtering. Registered 3rd in DI (between ApprovalBehavior and NotificationBehavior). New marker interface: `IFilterableByAuthorization`. This is a code-change per the pipeline code-change constraint.
+
+3. **Two-command split for CUD** — initial CUD command saves as Pending; a separate `CommitCommand` (dispatched when approved OR when approval not required) handles SAP upload / DB status update + fires notification. Notification belongs to CommitCommand, NOT to the initial CUD command.
+
+4. **IRequiresAuthorization is NOT used for GET list** — GET list uses `IFilterableByAuthorization` on the response type (post-handler filter), not a pre-handler gate. GET single uses `IRequiresAuthorization` (pre-handler gate). The two patterns are distinct and non-interchangeable.
+
+5. **Commit trigger mechanism** — when approval not required: `ApprovalBehavior` calls `_approvalService.TriggerCommitAsync()` which enqueues `CommitCommand` via Hangfire (durability-consistent with outbox pattern). When approved: Platform.Api approval webhook calls Business.Api commit endpoint → dispatches `CommitCommand`.
+
+6. **DB config table `feature_flags`** — keyed by `(flag_key, tenant_id)`. Read via `IFeatureFlagService` cached at 5-min TTL (consistent with auth cache). Checked inside `IApprovalService` and `INotificationService`, never inside behaviors.
+
+7. **Registration order** (1st=outermost): `AuthorizationBehavior` → `ApprovalBehavior` → `QueryAuthorizationBehavior` → `NotificationBehavior`. Each conditional behavior checks its marker via `is not` and calls `next()` to skip.
+
 - **Patch 2 — Operation Behavior Pipeline** (new subsection 8.4 in Section 8):
   - Documents the problem: per-operation composition of AuthorizationBehavior, ApprovalBehavior, NotificationBehavior was undocumented
   - Pattern: MediatR `IPipelineBehavior` pipeline — ordered, optional, conditional per operation
@@ -90,3 +110,28 @@
   - Integration table: each behavior maps to a specific Platform.Api REST endpoint
   - ⚠️ Code-change constraint: new behavior types require a code change; toggling existing behaviors does not
 
+### 2026-05-27 — Business-Domain Config Table Decision
+
+- **Rejected:** Generic `feature_flags (flag_key TEXT, tenant_id, is_enabled)` with dot-notation keys (`approval.Order.Create`)
+- **Adopted:** Structured `entity_activity_config (entity_type TEXT, activity TEXT, tenant_id UUID, approval_enabled BOOL, notification_enabled BOOL)` table
+- **Activity enum:** Full words `Create / Update / Delete` — not CUD shorthand — DB admins configure this directly; readability beats brevity
+- **Primary key:** `(tenant_id, entity_type, activity)` — tenant first for partition locality
+- **IRequiresApproval marker interface:** Upgraded to strongly-typed `EntityType` (string) + `Activity` (enum) properties replacing the freeform `ApprovalPolicy` string — enables compile-time traceability
+- **IFeatureFlagService:** Two methods `IsApprovalEnabled(entityType, activity, tenantId)` and `IsNotificationEnabled(entityType, activity, tenantId)` — both async, cached at 5-min TTL
+- **What you lose vs dot-notation:** Cannot add arbitrary new flag dimensions (e.g., `approval.Order.Create.highValue`) without a schema migration
+- **What you gain vs dot-notation:** Table is self-documenting; DB admin can read and configure without knowing the key contract; SQL queries are trivial joins; no key typo bugs at runtime
+
+### 2026-05-28 — Section 8.4 Amended: All Eight Pipeline Corrections Applied
+
+- **ApprovalBehavior repositioned as POST-handler:** Corrected from pre-gate to post-handler wrapper in diagram, prose, and code sketch. Handler always saves entity as `Pending` before `ApprovalBehavior` evaluates.
+- **QueryAuthorizationBehavior added (4th behavior):** Registered 3rd in DI (between Approval and Notification). Fires only when response implements `IFilterableByAuthorization`. In-process — no HTTP hop for GET list filtering.
+- **IFilterableByAuthorization:** New marker interface on **response types** (not request). GET list responses implement it; the behavior checks post-fetch.
+- **IRequiresApproval strongly typed:** Replaced `ApprovalPolicy` string with `EntityType` (string) + `Activity` (EntityActivity enum). Compile-time traceability, no key typos.
+- **EntityActivity enum:** `Create / Update / Delete` full words — DB admins configure this directly.
+- **entity_activity_config replaces feature_flags:** Structured table with `(tenant_id, entity_type, activity)` PK, `approval_enabled` + `notification_enabled` boolean columns. All `feature_flags` references removed from Section 8.4.
+- **IFeatureFlagService updated:** Two methods `IsApprovalEnabledAsync` / `IsNotificationEnabledAsync` both taking `(entityType, activity, tenantId)` — consistent with structured table.
+- **ApprovalBehavior flag check is in-behavior (not delegated):** `IApprovalService.EvaluateAsync` removed from the design; `ApprovalBehavior` calls `IFeatureFlagService` directly, consistent with pipeline contract (service = policy authority, but for the flag lookup the behavior is authorised to call the flag service directly).
+- **Two-Command CUD Split documented:** `Create{Entity}Command` (saves Pending, triggers approval) and `Commit{Entity}Command` (Pending→Active, SAP outbox, notification). `INotifiable` on Commit only — not on Create.
+- **Three flow patterns table added:** GET single, GET list, CUD Phase 1, CUD Phase 2 — each row shows markers, pre-handler, post-handler.
+- **Behavior registration code updated:** All four behaviors with inline comments.
+- **Trade-off confirmed:** Hangfire for commit dispatch (not inline MediatR Send) — avoids nested pipeline coupling, provides durability parity with SAP outbox.

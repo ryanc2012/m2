@@ -1458,11 +1458,13 @@ Platform.Notification (C# project, hosted in M2.Platform.Api)
 
 ### 8.4 Operation Behavior Pipeline
 
-> **Problem:** Each business operation (e.g., "Submit Purchase Order", "Approve Invoice") must compose cross-cutting behaviors: authorization check, approval workflow trigger, notification dispatch. Some operations need all three; some need only authorization. Without a systematic approach, each command handler duplicates this composition logic — making it inconsistent, hard to toggle, and difficult to extend.
+> **Problem:** Each business operation (e.g., "Submit Purchase Order", "Approve Invoice") must compose cross-cutting behaviors: authorization check, approval workflow trigger, notification dispatch. Without a systematic approach, each command handler duplicates this composition logic — making it inconsistent, hard to toggle, and difficult to extend.
 
 #### The Pipeline Pattern
 
 Inspired by MediatR `IPipelineBehavior<TRequest, TResponse>` (.NET). Every command/query enters the behavior chain in declaration order — **outermost wraps innermost** — with behaviors calling `await next()` to proceed inward. The DI registration order determines wrapping: first-registered = outermost.
+
+**Principle: ALL behaviors are mandatory within their pipeline type.** A behavior never skips execution based on marker interface absence. The pipeline type (GET single, GET list, CUD Phase 1, CUD Phase 2) determines the fixed set of behaviors that run. Whether a specific service action fires is decided by `IOperationBehaviorConfig`, which the behavior calls unconditionally using `AppId + ObjectType + Activity` from the command.
 
 ```
 Request → [AuthorizationBehavior] → [ApprovalBehavior] → [QueryAuthorizationBehavior] → [NotificationBehavior] → Handler → Response
@@ -1478,29 +1480,30 @@ Request → [AuthorizationBehavior] → [ApprovalBehavior] → [QueryAuthorizati
 │      ▼                                                                  │
 │  ┌───────────────────────────────────────┐                              │
 │  │  AuthorizationBehavior                │  ← PRE-handler gate          │
-│  │  IRequiresAuthorization on request    │    UNCONDITIONAL — no toggle  │
-│  │  calls Platform.Api /authz/check      │  → 403 if denied (stops here)│
-│  └──────────────────┬────────────────────┘                              │
+│  │  ALWAYS runs — consults config        │  → 403 if denied             │
+│  │  calls Platform.Api /authz/check      │    config: no-op if          │
+│  └──────────────────┬────────────────────┘    authorization_enabled=false│
 │                     │ calls next()                                      │
 │                     ▼                                                   │
 │  ┌───────────────────────────────────────┐                              │
 │  │  ApprovalBehavior                     │  ← POST-handler wrapper      │
-│  │  IRequiresApproval on request         │    calls next() FIRST        │
-│  │  evaluates after handler saves Pending│  → 202 Accepted or commit    │
+│  │  ALWAYS runs on CUD Phase 1           │    calls next() FIRST        │
+│  │  config decides: create workflow      │  → 202 Accepted or commit    │
+│  │  or enqueue commit directly           │                              │
 │  └──────────────────┬────────────────────┘                              │
 │                     │ calls next()                                      │
 │                     ▼                                                   │
 │  ┌───────────────────────────────────────┐                              │
 │  │  QueryAuthorizationBehavior           │  ← POST-handler filter       │
-│  │  IFilterableByAuthorization on        │    calls next() FIRST        │
-│  │  response type (GET list only)        │    filters items post-fetch  │
+│  │  ALWAYS runs on GET list              │    calls next() FIRST        │
+│  │  config decides: filter or pass-thru  │    filters items post-fetch  │
 │  └──────────────────┬────────────────────┘                              │
 │                     │ calls next()                                      │
 │                     ▼                                                   │
 │  ┌───────────────────────────────────────┐                              │
 │  │  NotificationBehavior                 │  ← POST-handler fire-and-    │
-│  │  INotifiable on request               │    forget — calls next() FIRST│
-│  │  calls Platform.Api /notifications    │    failure does not roll back │
+│  │  ALWAYS runs on CUD Phase 2           │    forget — calls next() FIRST│
+│  │  config decides: dispatch or no-op    │    failure does not roll back │
 │  └──────────────────┬────────────────────┘                              │
 │                     │ calls next()                                      │
 │                     ▼                                                   │
@@ -1510,25 +1513,27 @@ Request → [AuthorizationBehavior] → [ApprovalBehavior] → [QueryAuthorizati
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### Operation Metadata / Declaration
+#### IOperationCommand — Required Base Interface
 
-Operations declare their behavior requirements via **C# marker interfaces** at compile time. Marker interface presence is the contract — if the interface is absent, the behavior skips via an `is not` check and calls `next()`.
+All commands implement `IOperationCommand`. This is a **required base interface** — not optional. Behaviors read `AppId`, `ObjectType`, and `Activity` to perform the config lookup. No optional marker interfaces are needed as pipeline gates.
+
+Pipeline type is expressed via four sub-interfaces of `IOperationCommand`. Behavior generic type constraints ensure each behavior activates only for its intended pipeline type — MediatR resolves behaviors at request-type resolution time.
 
 ```csharp
-public interface IRequiresAuthorization { }
-
-public enum EntityActivity { Create, Update, Delete }
-
-public interface IRequiresApproval
+public interface IOperationCommand
 {
-    string         EntityType { get; }   // e.g. "CustomerMaster", "GoodsReceipt"
-    EntityActivity Activity   { get; }   // EntityActivity.Create / Update / Delete
+    string         AppId      { get; }  // "MekaPOS" | "MekaPromos" | "M2Portal"
+    string         ObjectType { get; }  // "CustomerMaster" | "GoodsReceipt" | "Order"
+    EntityActivity Activity   { get; }  // Create | Update | Delete | Get | List
 }
 
-public interface INotifiable
-{
-    string NotificationEvent { get; }
-}
+public enum EntityActivity { Create, Update, Delete, Get, List }
+
+// Pipeline-type sub-interfaces — determines which fixed behavior set activates
+public interface IGetSingleCommand   : IOperationCommand { }
+public interface IGetListCommand     : IOperationCommand { }
+public interface ICudPhase1Command   : IOperationCommand { }  // save-as-pending + approval
+public interface ICudPhase2Command   : IOperationCommand { }  // commit + notification
 
 /// <summary>
 /// Applied to response types (e.g. IReadOnlyList&lt;T&gt; wrappers) whose items
@@ -1538,17 +1543,20 @@ public interface IFilterableByAuthorization { }
 
 // Phase 1 command — saves entity as Pending, triggers approval
 public sealed record CreateCustomerMasterCommand(/* ... */)
-    : IRequest<Result>, IRequiresAuthorization, IRequiresApproval
+    : IRequest<Result>, ICudPhase1Command
 {
-    public string         EntityType => "CustomerMaster";
+    public string         AppId      => "MekaPOS";
+    public string         ObjectType => "CustomerMaster";
     public EntityActivity Activity   => EntityActivity.Create;
 }
 
 // Phase 2 command — commits entity, fires notification
 public sealed record CommitCustomerMasterCommand(/* ... */)
-    : IRequest<Result>, IRequiresAuthorization, INotifiable
+    : IRequest<Result>, ICudPhase2Command
 {
-    public string NotificationEvent => "CustomerMaster.Committed";
+    public string         AppId      => "MekaPOS";
+    public string         ObjectType => "CustomerMaster";
+    public EntityActivity Activity   => EntityActivity.Create;
 }
 
 // GET list response — items filtered post-fetch by QueryAuthorizationBehavior
@@ -1558,61 +1566,55 @@ public sealed class CustomerMasterListResult : IFilterableByAuthorization
 }
 ```
 
-**Enforced vs. optional behaviors:**
-
-| Behavior | Marker location | Type | What happens if marker absent |
-|----------|----------------|------|-------------------------------|
-| `IRequiresAuthorization` | On **request** | **Enforced** — pipeline returns `Unauthorized` if check fails | Behavior skips (anonymous/public operation) |
-| `IRequiresApproval` | On **request** | Conditional — marker absent → behavior skips via `is not` | Proceeds to handler immediately |
-| `IFilterableByAuthorization` | On **response type** | Conditional — response not filterable → behavior skips | No post-fetch filter applied |
-| `INotifiable` | On **request** | Conditional — marker absent → behavior skips via `is not` | No notification dispatched |
-
-> A command implementing `IRequiresAuthorization` **must** be authorized — the pipeline does not allow bypass. Authorization is the only unconditionally enforced behavior (no DB toggle).
-
-> **Note (Option B — named pipeline profiles in JSON config):** A config-driven profile approach was considered but **not chosen**. Marker interfaces were selected for compile-time safety and strongly-typed policy contracts. Runtime enable/disable of existing behaviors is handled inside the cross-cutting service via `IFeatureFlagService` (see [Enable / Disable at Runtime](#enable--disable-at-runtime)).
+> The optional marker interfaces `IRequiresAuthorization`, `IRequiresApproval`, and `INotifiable` are **retired**. Pipeline type (via sub-interface) determines the behavior set; `IOperationBehaviorConfig` determines whether each service action fires.
 
 #### Behavior Registration
 
-Behaviors are registered in the DI container in fixed priority order:
+Behaviors carry generic type constraints matching their pipeline sub-interface. MediatR activates a behavior only when `TRequest` satisfies the constraint — no runtime `is not` skip required.
 
 ```csharp
 services.AddMediatR(cfg =>
 {
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));          // 1st — always, pre-handler gate
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ApprovalBehavior<,>));               // 2nd — POST-handler, IRequiresApproval only
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(QueryAuthorizationBehavior<,>));     // 3rd — POST-handler, IFilterableByAuthorization only
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(NotificationBehavior<,>));           // 4th — POST-handler fire-and-forget, INotifiable only
+    // AuthorizationBehavior — all pipeline types (IOperationCommand base constraint)
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
+
+    // ApprovalBehavior — CUD Phase 1 only (ICudPhase1Command constraint)
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ApprovalBehavior<,>));
+
+    // QueryAuthorizationBehavior — GET list only (IGetListCommand constraint)
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(QueryAuthorizationBehavior<,>));
+
+    // NotificationBehavior — CUD Phase 2 only (ICudPhase2Command constraint)
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(NotificationBehavior<,>));
 });
 ```
 
-Each behavior checks for its marker interface at runtime. Conditional behaviors skip via `is not`; the cross-cutting **service** owns the on/off decision — the behavior calls it unconditionally when the marker is present:
+Each behavior calls `IOperationBehaviorConfig` unconditionally — the config service decides no-op, not the behavior:
 
 ```csharp
 public class ApprovalBehavior<TRequest, TResponse>
     : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : ICudPhase1Command
 {
     public async Task<TResponse> Handle(TRequest request, HandlerDelegate next, CancellationToken ct)
     {
-        if (request is not IRequiresApproval approvalRequest)
-            return await next(); // marker absent — skip entirely
-
         // PHASE 1: execute handler first (saves entity as Pending)
         var response = await next();
 
-        // PHASE 2: evaluate approval post-handler
-        var enabled = await _featureFlags.IsApprovalEnabledAsync(
-            approvalRequest.EntityType, approvalRequest.Activity, _tenantContext.TenantId);
+        // PHASE 2: consult config — service decides whether to create workflow
+        var config = await _behaviorConfig.GetAsync(
+            request.AppId, request.ObjectType, request.Activity, ct);
 
-        if (!enabled)
+        if (!config.ApprovalEnabled)
         {
-            // Approval disabled — enqueue commit via Hangfire
+            // Config says: approval not applicable for this app+object+activity
             _backgroundJobs.Enqueue<ICommitJobHandler>(
-                h => h.CommitAsync(approvalRequest.EntityType, approvalRequest.Activity, ct));
+                h => h.CommitAsync(request.AppId, request.ObjectType, request.Activity, ct));
             return response;
         }
 
         // Approval enabled — create workflow in Platform.Api
-        await _approvalService.CreateWorkflowAsync(approvalRequest, ct);
+        await _approvalService.CreateWorkflowAsync(request, ct);
         return Result.Pending("Submitted for approval") as TResponse ?? response;
     }
 }
@@ -1622,37 +1624,47 @@ public class ApprovalBehavior<TRequest, TResponse>
 
 #### Enable / Disable at Runtime
 
-The pipeline behavior calls the cross-cutting service **unconditionally** whenever the marker interface is present. Whether the service actually performs the action is determined **inside the service itself** via `IFeatureFlagService` backed by the `entity_activity_config` DB table — the behavior does NOT inspect feature flags directly.
+Behaviors **always execute** within their pipeline type. Whether the service action fires is determined by `IOperationBehaviorConfig` backed by the `operation_behavior_config` DB table — keyed by `(app_id, object_type, activity)`.
 
 ```sql
-CREATE TABLE entity_activity_config (
-    tenant_id             UUID     NOT NULL,
-    entity_type           TEXT     NOT NULL,   -- 'CustomerMaster', 'GoodsReceipt'
-    activity              TEXT     NOT NULL,   -- 'Create' | 'Update' | 'Delete'
+CREATE TABLE operation_behavior_config (
+    app_id                TEXT     NOT NULL,   -- 'MekaPOS' | 'MekaPromos' | 'M2Portal'
+    object_type           TEXT     NOT NULL,   -- 'CustomerMaster', 'GoodsReceipt'
+    activity              TEXT     NOT NULL,   -- 'Create' | 'Update' | 'Delete' | 'Get' | 'List'
+    authorization_enabled BOOLEAN  NOT NULL DEFAULT TRUE,
     approval_enabled      BOOLEAN  NOT NULL DEFAULT TRUE,
     notification_enabled  BOOLEAN  NOT NULL DEFAULT TRUE,
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (tenant_id, entity_type, activity)
+    PRIMARY KEY (app_id, object_type, activity)
 );
 ```
 
+`app_id` leads the primary key — the same `object_type + activity` can behave differently per application. No row exists → all behaviors enabled (fail-secure default).
+
 ```csharp
-public interface IFeatureFlagService
+public interface IOperationBehaviorConfig
 {
-    Task<bool> IsApprovalEnabledAsync(string entityType, EntityActivity activity, Guid tenantId);
-    Task<bool> IsNotificationEnabledAsync(string entityType, EntityActivity activity, Guid tenantId);
+    Task<BehaviorConfig> GetAsync(
+        string appId, string objectType, EntityActivity activity,
+        CancellationToken ct = default);
 }
+
+public record BehaviorConfig(
+    bool AuthorizationEnabled,
+    bool ApprovalEnabled,
+    bool NotificationEnabled
+);
 ```
 
-Implementation caches per `(tenantId, entityType, activity)` key at **5-minute TTL** via `IMemoryCache` — consistent with the auth cache TTL (ADR-004). Per-request DB reads are prohibited.
+Implementation caches per `(appId, objectType, activity)` key at **5-minute TTL** via `IMemoryCache` — consistent with the auth cache TTL (ADR-004). Per-request DB reads are prohibited.
+
+`IFeatureFlagService` is **retired** — replaced by `IOperationBehaviorConfig`.
 
 | Granularity | Mechanism | Where decided |
 |-------------|-----------|---------------|
-| **Per-behavior type** (global) | `IFeatureFlagService` inside the service | Cross-cutting service (Platform.Api) |
-| **Per entity+activity** | `entity_activity_config` keyed by `(tenant_id, entity_type, activity)` | Cross-cutting service (Platform.Api) |
-| **Per-tenant** | `entity_activity_config` tenant_id column | Cross-cutting service (Platform.Api) |
-
-`ApprovalBehavior` reads `IsApprovalEnabledAsync(request.EntityType, request.Activity, tenantId)` directly via `IFeatureFlagService`. The behavior acts on the boolean result — it does not call `IApprovalService.EvaluateAsync` (removed); the flag check is now inside the behavior, not delegated to a service.
+| **Per-behavior type** (global) | `IOperationBehaviorConfig` consulted inside each behavior | Inside each pipeline behavior |
+| **Per app+object+activity** | `operation_behavior_config` keyed by `(app_id, object_type, activity)` | DB table — updated by ops/admin |
+| **Per-application** | `app_id` as leading PK column | DB table — same object+activity differs per app |
 
 #### Integration with Cross-Cutting Services
 
@@ -1665,34 +1677,31 @@ Implementation caches per `(tenantId, entityType, activity)` key at **5-minute T
 
 `NotificationBehavior` dispatches asynchronously (background `Task`) — a notification failure does not affect the operation result.
 
-#### Three Distinct Flow Patterns
+#### Four Distinct Flow Patterns
 
-| Flow | Markers on Request | Marker on Response | Pre-handler | Post-handler |
-|------|-------------------|--------------------|-------------|--------------|
-| GET single | `IRequiresAuthorization` | — | AuthBehavior gate | — |
-| GET list | — | `IFilterableByAuthorization` (on response type) | — | QueryAuthBehavior filter |
-| CUD Phase 1 | `IRequiresAuthorization`, `IRequiresApproval` | — | AuthBehavior gate | ApprovalBehavior |
-| CUD Phase 2 | `IRequiresAuthorization`, `INotifiable` | — | AuthBehavior gate | NotificationBehavior |
+Pipeline type is determined by which sub-interface of `IOperationCommand` the command implements — not by optional markers.
+
+| Pipeline Type | Fixed behaviors (always run in order) | Pre-handler | Post-handler |
+|--------------|--------------------------------------|-------------|--------------|
+| GET single (`IGetSingleCommand`) | `AuthorizationBehavior` | AuthBehavior gate | — |
+| GET list (`IGetListCommand`) | `AuthorizationBehavior` → `QueryAuthorizationBehavior` | AuthBehavior gate | QueryAuthBehavior filter |
+| CUD Phase 1 (`ICudPhase1Command`) | `AuthorizationBehavior` → `ApprovalBehavior` | AuthBehavior gate | ApprovalBehavior |
+| CUD Phase 2 (`ICudPhase2Command`) | `AuthorizationBehavior` → `NotificationBehavior` | AuthBehavior gate | NotificationBehavior |
 
 **Flow 1 — GET single:**
 ```
-GetCustomerMasterQuery (IRequiresAuthorization)
-  → AuthorizationBehavior: pre-gate → 403 if denied
-  → [ApprovalBehavior skips: not IRequiresApproval]
-  → [QueryAuthorizationBehavior skips: response not IFilterableByAuthorization]
+GetCustomerMasterQuery (IGetSingleCommand: AppId="MekaPOS", ObjectType="CustomerMaster", Activity=Get)
+  → AuthorizationBehavior: config lookup → 403 if denied; no-op if authorization_enabled=false
   → Handler: fetch entity
-  → [NotificationBehavior skips: not INotifiable]
   ← Response
 ```
 
 **Flow 2 — GET list:**
 ```
-GetCustomerMastersQuery  (no IRequiresAuthorization — no pre-gate)
-  → [AuthorizationBehavior skips]
-  → [ApprovalBehavior skips]
-  → QueryAuthorizationBehavior: calls next() first → handler fetches all → filters response items
-  → Handler: fetch full list → returns CustomerMasterListResult : IFilterableByAuthorization
-  → [NotificationBehavior skips]
+GetCustomerMastersQuery (IGetListCommand: AppId="MekaPOS", ObjectType="CustomerMaster", Activity=List)
+  → AuthorizationBehavior: config lookup → 403 if denied
+  → QueryAuthorizationBehavior: calls next() first → config lookup → filters response items (or pass-thru if authorization_enabled=false)
+    → Handler: fetch full list → returns CustomerMasterListResult : IFilterableByAuthorization
   ← Filtered response
 ```
 
@@ -1703,48 +1712,44 @@ GetCustomerMastersQuery  (no IRequiresAuthorization — no pre-gate)
 The CUD flow is split across **two MediatR commands** to ensure the entity is persisted before the approval workflow references it.
 
 **Phase 1 — `Create{Entity}Command` (e.g., `CreateCustomerMasterCommand`):**
-- Markers: `IRequiresAuthorization`, `IRequiresApproval`
+- Pipeline type: `ICudPhase1Command` → fixed set: `AuthorizationBehavior` → `ApprovalBehavior`
 - Handler saves entity as `status = Pending`
 - `ApprovalBehavior` evaluates AFTER handler:
-  - Approval **enabled** → calls `Platform.Api /approvals` → creates approval workflow → returns `202 Accepted`
-  - Approval **disabled** → enqueues `Commit{Entity}Command` via Hangfire → returns `200 OK`
+  - `approval_enabled = true` → calls `Platform.Api /approvals` → creates approval workflow → returns `202 Accepted`
+  - `approval_enabled = false` → enqueues `Commit{Entity}Command` via Hangfire → returns `200 OK`
 
 ```
-CreateCustomerMasterCommand (IRequiresAuthorization, IRequiresApproval)
-  → AuthorizationBehavior: pre-gate
+CreateCustomerMasterCommand (ICudPhase1Command: AppId="MekaPOS", ObjectType="CustomerMaster", Activity=Create)
+  → AuthorizationBehavior: config lookup → pre-gate
   → ApprovalBehavior: calls next() FIRST (post-handler wrapper)
-    → [QueryAuthorizationBehavior skips]
-    → [NotificationBehavior skips — not INotifiable]
     → Handler: saves entity as status=Pending
-  ← ApprovalBehavior evaluates:
-        enabled=true   → Platform.Api creates workflow    → 202 Accepted
-        enabled=false  → Hangfire enqueues CommitCommand  → 200 OK
+  ← ApprovalBehavior: config.ApprovalEnabled?
+        true   → Platform.Api creates workflow    → 202 Accepted
+        false  → Hangfire enqueues CommitCommand  → 200 OK
 ```
 
 **Phase 2 — `Commit{Entity}Command` (e.g., `CommitCustomerMasterCommand`):**
-- Markers: `IRequiresAuthorization`, `INotifiable`
+- Pipeline type: `ICudPhase2Command` → fixed set: `AuthorizationBehavior` → `NotificationBehavior`
 - Triggered by: Hangfire (approval disabled) OR Platform.Api approval webhook callback (approved)
 - Handler updates entity `Pending → Active`, uploads to SAP via outbox
 - `NotificationBehavior` fires after handler (fire-and-forget)
 
 ```
-CommitCustomerMasterCommand (IRequiresAuthorization, INotifiable)
-  → AuthorizationBehavior: pre-gate (system principal or approver identity)
-  → [ApprovalBehavior skips: not IRequiresApproval]
-  → [QueryAuthorizationBehavior skips]
+CommitCustomerMasterCommand (ICudPhase2Command: AppId="MekaPOS", ObjectType="CustomerMaster", Activity=Create)
+  → AuthorizationBehavior: config lookup → pre-gate (system principal or approver identity)
   → NotificationBehavior: calls next() first
     → Handler: update status Pending → Active; enqueue SAP upload via outbox
-  ← NotificationBehavior: fire-and-forget Platform.Api /notifications
+  ← NotificationBehavior: config.NotificationEnabled? → fire-and-forget Platform.Api /notifications
   ← Response
 ```
 
-> **`INotifiable` lives on `CommitCommand`, NOT on `CreateCommand`.** Notification fires after commit — not after save-as-pending. Business semantics require notification of committed state only.
+> **Notification lives on `CommitCommand`, NOT on the initial CUD command.** Notification fires after commit — not after save-as-pending. Business semantics require notification of committed state only.
 
 #### Code-Change Constraint
 
-> ⚠️ **Adding a new behavior type requires a code change.** You must implement a new `IPipelineBehavior<TRequest, TResponse>`, register it in the pipeline, and define the marker interface contract. This is not configuration-only. Runtime toggling of *existing* behaviors via feature flags (inside the cross-cutting service) does not require a code change.
+> ⚠️ **Adding a new behavior type requires a code change.** You must implement a new `IPipelineBehavior<TRequest, TResponse>` with the appropriate `IOperationCommand` sub-interface constraint, register it in the pipeline, and add the corresponding flag column to `BehaviorConfig` / `operation_behavior_config`. This is not configuration-only. Runtime toggling of *existing* behaviors via `IOperationBehaviorConfig` (DB table update) does not require a code change.
 
-> ⚠️ **Pipeline contract:** The pipeline guarantees that cross-cutting behaviors run — it does NOT decide whether a specific operation is subject to them. That decision belongs to the command (via marker interfaces) and to the cross-cutting service (via internal feature flags). Behaviors are the enforcement mechanism; services are the policy authority.
+> ⚠️ **Pipeline contract:** The pipeline guarantees that cross-cutting behaviors run within their pipeline type — it does NOT decide whether a specific service action fires. That decision belongs to `IOperationBehaviorConfig` (via `operation_behavior_config` table). Behaviors are the enforcement mechanism; the config service is the policy authority.
 
 ---
 

@@ -135,3 +135,13 @@
 - **Three flow patterns table added:** GET single, GET list, CUD Phase 1, CUD Phase 2 — each row shows markers, pre-handler, post-handler.
 - **Behavior registration code updated:** All four behaviors with inline comments.
 - **Trade-off confirmed:** Hangfire for commit dispatch (not inline MediatR Send) — avoids nested pipeline coupling, provides durability parity with SAP outbox.
+
+### 2026-05-28 — Mandatory Behavior Pipeline: Marker Interfaces Retired, IOperationCommand Adopted
+
+- **Correction by Ryan:** Marker interface–based skipping (`is not IRequiresApproval → return next()`) is the wrong pattern. The correct pattern: behaviors ALWAYS execute within their pipeline type; `IOperationBehaviorConfig` (not marker presence) decides no-op.
+- **IOperationCommand:** Single required base interface on ALL commands — `AppId`, `ObjectType`, `Activity`. No optional markers needed as gates. Four pipeline sub-interfaces (`IGetSingleCommand`, `IGetListCommand`, `ICudPhase1Command`, `ICudPhase2Command`) carry MediatR generic type constraints — behaviors activate only for their pipeline type at resolution time.
+- **IFeatureFlagService retired:** Replaced by `IOperationBehaviorConfig` backed by `operation_behavior_config` table. Key insight: `app_id` leads the PK — same `object_type + activity` can behave differently per application (MekaPOS vs. MekaPromos vs. M2Portal).
+- **entity_activity_config retired:** Replaced by `operation_behavior_config (app_id, object_type, activity)`. Tenant-keyed approach dropped; app-keyed approach adopted. Fail-secure default: no row → all behaviors enabled.
+- **Behavior registration:** Generic type constraints on behavior classes replace runtime `is not` checks. MediatR resolves behaviors per-command-type — clean, no runtime branching inside behaviors.
+- **Trade-off named:** Losing per-tenant granularity (tenant was the old PK leader). Gaining per-app granularity — more aligned with the actual multi-app deployment model (three BFFs, three app identities).
+- **Applied in:** `docs/architecture/ARCHITECTURE.md` Section 8.4 rewritten. Decision inbox: `.squad/decisions/inbox/keyser-mandatory-behaviors.md`.

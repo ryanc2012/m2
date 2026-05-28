@@ -1,7 +1,7 @@
 # Platform Architecture — POS & Enterprise Platform
 
 > **Author:** Keyser (Lead / Architect)
-> **Date:** 2026-05-12
+> **Date:** 2026-05-28
 > **Status:** Approved — Foundational (Core) | Proposal — Pending Review (ADR-002, ADR-003, ADR-004)
 
 ---
@@ -1426,7 +1426,7 @@ public interface IPositionResolver
 }
 ```
 
-Built-in variables: `superior_of_requester`. Each value is a code-defined constant — see `IPositionResolver`.
+Built-in variables: `superior_of_requester`. Each is a code-defined constant in `IPositionResolver` — **adding a new variable requires a code change** (new resolver implementation + registration). There is no configuration-only path for new variable types.
 
 **Notifications:** On step activation (including group steps), the Notification Module in `M2.Platform.Api` dispatches approval requests to **all** eligible position holders simultaneously.
 
@@ -1709,6 +1709,8 @@ GetCustomerMastersQuery (IGetListCommand: AppId="MekaPOS", ObjectType="CustomerM
 
 #### CUD Two-Phase Commit
 
+> **Design Principle — Pending-First, Always:** Every CUD operation ALWAYS saves the entity as `Pending` in Phase 1, regardless of whether approval is enabled. There is no "bypass Phase 1" path. The difference between an approval-required and non-approval operation is only in what ApprovalBehavior does AFTER the handler: create an approval workflow (holds in Pending state) or immediately enqueue Phase 2 (Pending → Committed in seconds). This ensures a consistent audit trail — every mutation begins as Pending.
+
 The CUD flow is split across **two MediatR commands** to ensure the entity is persisted before the approval workflow references it.
 
 **Phase 1 — `Create{Entity}Command` (e.g., `CreateCustomerMasterCommand`):**
@@ -1742,6 +1744,8 @@ CommitCustomerMasterCommand (ICudPhase2Command: AppId="MekaPOS", ObjectType="Cus
   ← NotificationBehavior: config.NotificationEnabled? → fire-and-forget Platform.Api /notifications
   ← Response
 ```
+
+> **Handler Dispatch Mechanics:** In MediatR, the handler is called exactly once per `mediator.Send()` call. The two-phase commit model does NOT call the same handler twice in one pipeline — it uses two separate `mediator.Send()` dispatches (`CreateCustomerMasterCommand` and `CommitCustomerMasterCommand`), each with their own full pipeline execution. `ApprovalBehavior` triggers the Phase 2 dispatch (via Hangfire for durability). The Handler is always the terminal innermost element of its pipeline — it cannot be re-invoked from within a behavior.
 
 > **Notification lives on `CommitCommand`, NOT on the initial CUD command.** Notification fires after commit — not after save-as-pending. Business semantics require notification of committed state only.
 

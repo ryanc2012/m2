@@ -136,6 +136,13 @@
 - **Behavior registration code updated:** All four behaviors with inline comments.
 - **Trade-off confirmed:** Hangfire for commit dispatch (not inline MediatR Send) — avoids nested pipeline coupling, provides durability parity with SAP outbox.
 
+### 2026-05-28 — Section 8.4 & ADR-004 Targeted Additions (Q&A Session)
+
+- **Pending-First, Always principle added (Section 8.4):** Explicit boxed design principle added before Phase 1 description — every CUD saves as `Pending` in Phase 1 with no bypass path; the approval/no-approval split happens only in what `ApprovalBehavior` does post-handler.
+- **Handler Dispatch Mechanics note added (Section 8.4):** Clarifies that MediatR calls each handler exactly once per `Send()`; the two-phase commit uses two separate dispatches — the handler cannot be re-invoked from within a behavior.
+- **IPositionResolver built-in variables clarified (ADR-004):** Replaced vague "see IPositionResolver" with explicit statement that adding a new variable requires a code change (new resolver implementation + registration) — no configuration-only path.
+- **Document header date updated:** `2026-05-12` → `2026-05-28`.
+
 ### 2026-05-28 — Mandatory Behavior Pipeline: Marker Interfaces Retired, IOperationCommand Adopted
 
 - **Correction by Ryan:** Marker interface–based skipping (`is not IRequiresApproval → return next()`) is the wrong pattern. The correct pattern: behaviors ALWAYS execute within their pipeline type; `IOperationBehaviorConfig` (not marker presence) decides no-op.
